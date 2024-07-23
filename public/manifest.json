@@ -1,0 +1,15 @@
+{
+    "name": "Hoot",
+    "version": "0.0.1",
+    "manifest_version": 1,
+    "author": "Armindo Flores",
+    "icon": "/icon.svg",
+    "description": "Hoot adds a music player to Owlbear Rodeo.",
+    "action": {
+      "title": "Hoot",
+      "icon": "/icon.svg",
+      "popover": "/",
+      "height": 500,
+      "width": 500
+    }
+  }
