@@ -7,6 +7,18 @@
     flex-direction: column;
 }
 
+.text-small {
+    font-size: 0.75rem;
+}
+
+.clickable {
+    cursor: pointer;
+}
+
+.unselectable {
+    user-select: none;
+}
+
 .body {
     flex: 1;
     display: flex;
@@ -48,7 +60,7 @@
 
 .track-display {
     flex: 1;
-    margin-top: 0.5rem;
+    margin-top: 1rem;
     position: relative;
 }
 
@@ -88,7 +100,7 @@
 .playlist-name {
     font-weight: bold;
     margin: 0;
-    padding-left: 0.5rem;
+    padding: 0 0.5rem;
 }
 
 .playlist-body {
@@ -105,8 +117,12 @@
 }
 
 .track-info {
-    padding-left: 0.9rem;
+    padding-right: 0.9rem;
     cursor: pointer;
+
+    display: flex;
+    flex-direction: row;
+    align-items: center;
 }
 
 .track-info:hover {
@@ -119,4 +135,198 @@
 
 .rotated {
     transform: rotate(90deg);
+}
+
+.track-info-right {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    flex: 1;
+}
+
+.audio-player-container {
+    flex: 1;
+    margin-top: 1rem;
+    position: relative;
+}
+
+.audio-player-container-inner {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    overflow-y: auto;
+
+    text-align: left;
+    padding: 0 1rem;
+
+    display: flex;
+    flex-direction: column;
+}
+
+.audio-control-holder {
+    display: flex;
+    flex: 0;
+    flex-direction: row;
+
+    max-width: 100%;
+    padding: 0.25rem 0;
+}
+
+.track-player-container {
+    display: flex;
+    flex-direction: row;
+    flex: 1;
+
+    background-color: rgb(45, 45, 45, 0.75);
+    padding: 0.5rem 0.5rem;
+    
+    border-radius: 10px;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.volume-widget {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.volume-slider {
+    flex: 1;
+    width: 0.65rem;
+    display: flex;
+    align-items: center;
+}
+  
+.volume-slider-thumb {
+    height: 0.65rem;
+    width: 0.65rem;
+    background-color: white;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 1px solid #ccc;
+    box-shadow: 0 0 2px rgba(0, 0, 0, 0.75);
+
+    display: flex;
+    align-items: center;
+}
+  
+.volume-slider-track {
+    width: 50%;
+    left: 0.21rem;
+    border-radius: 1rem;
+    background: #555555;
+}
+  
+.volume-slider-track-0 {
+    width: 50%;
+    left: 0.21rem;
+    border-radius: 1rem;
+    background: #cccccc;
+}
+
+.track-control-widgets {
+    display: flex;
+    flex-direction: column;
+    align-items: baseline;
+    justify-content: center;
+
+    flex: 1;
+    padding: 0 1rem;
+
+    overflow: hidden;
+    max-width: 100%;
+}
+
+.track-control-display {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    flex: 1;
+    max-width: 100%;
+}
+
+.track-progressbar-container {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+
+    width: 100%;
+}
+
+.progressbar {
+    height: 0.5rem;
+    display: flex;
+    align-items: center;
+
+    cursor: pointer;
+}
+
+.progressbar-track {
+    height: 50%;
+    background: #555555;
+}
+
+.progressbar-track-0 {
+    height: 50%;
+    background: #cccccc;
+}
+
+.track-bottom-widgets-container {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-evenly;
+
+    width: 100%;
+}
+
+.track-playback-controls-container {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+}
+
+.track-playmode-controls-container {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+}
+
+.playback-control {
+    padding-right: 1rem;
+}
+
+.play-button {
+    padding-right: 1rem;
+    font-size: 1.2rem;
+    width: 1.2rem;
+    width: 1rem;
+}
+
+.playmode-control {
+    padding-left: 1rem;
+}
+
+.playmode-control-button {
+    font-size: 1.1rem;
+    padding: 0.1rem;
+    border-radius: 50%;
+
+    width: 1.5rem;
+    height: 1.5rem;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.highlighted {
+    background-color: white;
+    color: rgb(45, 45, 45);
 }

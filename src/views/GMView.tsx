@@ -1,6 +1,8 @@
 import { faGear, faList, faMusic, faUpload } from "@fortawesome/free-solid-svg-icons";
 import { useCallback, useState } from "react";
 
+import { AudioPlayerProvider } from "../components/AudioPlayerProvider";
+import { AudioPlayerView } from "./AudioPlayerView";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { TrackListView } from "./TrackListView";
 import { TrackProvider } from "../components/TrackProvider";
@@ -42,19 +44,17 @@ export function GMView() {
             </div>;
     }, [selectedScreen]);
 
-    const Body = useCallback(() => {
-        if (selectedScreen === "track-list") {
-            return <TrackListView />;
-        }
-        return <></>;
-    }, [selectedScreen]);
-
     return <>
         <Navbar />
         <TrackProvider>
-            <div className="body">
-                <Body />
-            </div>
+            <AudioPlayerProvider>
+                <div className="body" style={{ display: selectedScreen === "track-list" ? undefined : "none"}}>
+                    <TrackListView />
+                </div>
+                <div className="body" style={{ display: selectedScreen === "player" ? undefined : "none"}}>
+                    <AudioPlayerView />
+                </div>
+            </AudioPlayerProvider>
         </TrackProvider>
     </>;
 }
