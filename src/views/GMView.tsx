@@ -1,10 +1,11 @@
 import { faGear, faList, faMusic, faUpload } from "@fortawesome/free-solid-svg-icons";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AudioPlayerView } from "./AudioPlayerView";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { MessageContent } from "../types/messages";
 import { TrackListView } from "./TrackListView";
+import { useArrayCompareMemoize } from "../hooks";
 import { useAudioPlayer } from "../components/AudioPlayerProvider";
 import { useOBRMessaging } from "../react-obr/providers";
 
@@ -13,6 +14,8 @@ type Screen = "track-list" | "player" | "export" | "settings";
 export function GMView() {
     const { sendMessage, registerMessageHandler } = useOBRMessaging();
     const { playing } = useAudioPlayer();
+    const playingPlaylists = useMemo(() => Object.keys(playing), [playing]);
+    const memoizedPlayingPlaylists = useArrayCompareMemoize(playingPlaylists);
 
     const [ selectedScreen, setSelectedScreen ] = useState<Screen>("track-list");
 
@@ -54,6 +57,10 @@ export function GMView() {
         });
     }, [playing]);
 
+    useEffect(() => {
+        sendMessage({ type: "playlists", payload: Object.keys(playing) });
+    }, [memoizedPlayingPlaylists]);
+
     const Navbar = useCallback(() => {
         return <div className="navbar">
             <div
@@ -90,6 +97,12 @@ export function GMView() {
         </div>
         <div className="body" style={{ display: selectedScreen === "player" ? undefined : "none"}}>
             <AudioPlayerView />
+        </div>
+        <div className="body" style={{ display: selectedScreen === "export" ? undefined : "none"}}>
+            <p>Coming soon!</p>
+        </div>
+        <div className="body" style={{ display: selectedScreen === "settings" ? undefined : "none"}}>
+            <p>Coming soon!</p>
         </div>
     </>;
 }

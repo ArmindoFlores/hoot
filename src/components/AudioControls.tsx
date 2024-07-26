@@ -63,7 +63,9 @@ export function AudioControls(props: AudioControlsProps) {
 
     const throttledSend = useThrottled(sendMessage, 250, "trailing");
 
-    const sendTrackUpdates = () => setScheduledUpdate(true);
+    const sendTrackUpdates = () => {
+        setScheduledUpdate(true);
+    }
 
     const setCurrentTrack = (track?: Track) => {
         setTrack(track, props.playlist);
@@ -102,6 +104,7 @@ export function AudioControls(props: AudioControlsProps) {
 
     useEffect(() => {
         if (scheduledUpdate) {
+            setScheduledUpdate(false);
             throttledSend({
                 type: "track",
                 payload:  {
@@ -113,9 +116,8 @@ export function AudioControls(props: AudioControlsProps) {
                     playing: current.playing,
                 }
             });
-            setScheduledUpdate(false);
         }
-    }, [scheduledUpdate]);
+    }, [scheduledUpdate, throttledSend, current]);
 
     useEffect(() => {
         const newShuffled = new Map<string, Track[]>();
