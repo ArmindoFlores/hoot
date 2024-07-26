@@ -13,6 +13,7 @@ interface TrackContextType {
     playlists: string[];
 };
 
+
 const TrackContext = createContext<TrackContextType>({ tracks: new Map(), playlists: [] });
 export const useTracks = () => useContext(TrackContext);
 

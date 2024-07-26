@@ -1,6 +1,8 @@
+import { AudioPlayerProvider } from "../components/AudioPlayerProvider";
 import { GMView } from "./GMView";
 import { OBRMessageProvider } from "../react-obr/providers";
 import { PlayerView } from "./PlayerView";
+import { TrackProvider } from "../components/TrackProvider";
 import { useCallback } from "react";
 import { useOBR } from "../react-obr/providers/BaseOBRProvider";
 
@@ -12,7 +14,11 @@ export function Hoot() {
             return <p>Could not load Owlbear Extension.</p>;
         }
         if (player.role == "GM") {
-            return <GMView />;
+            return <TrackProvider>
+                <AudioPlayerProvider>
+                    <GMView />
+                </AudioPlayerProvider>
+            </TrackProvider>;
         }
         else {
             return <PlayerView />;

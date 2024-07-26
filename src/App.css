@@ -19,6 +19,10 @@
     user-select: none;
 }
 
+.transparent {
+    opacity: 0;
+}
+
 .body {
     flex: 1;
     display: flex;
@@ -147,7 +151,6 @@
 
 .audio-player-container {
     flex: 1;
-    margin-top: 1rem;
     position: relative;
 }
 
@@ -176,6 +179,8 @@
 }
 
 .track-player-container {
+    position: relative;
+
     display: flex;
     flex-direction: row;
     flex: 1;
@@ -329,4 +334,51 @@
 .highlighted {
     background-color: white;
     color: rgb(45, 45, 45);
+}
+
+.close-button-container {
+    position: absolute;
+    top: 0.25rem;
+    right: 0.5rem;
+}
+
+.global-volume {
+    position: absolute;
+    bottom: 1rem;
+    right: 1.5rem;
+}
+
+.global-volume-icon-container {
+    position: relative;
+    background-color: rgb(45, 45, 45);
+    border-radius: 50%;
+
+    padding: 0.5rem;
+    width: 1.5rem;
+    height: 1.5rem;
+
+    z-index: 100;
+}
+
+.global-volume-slider-container {
+    position: relative;
+    height: 0;
+    background-color: rgb(45, 45, 45);
+    padding: 0;
+    
+    bottom: -1rem;
+    border-radius: 10px 10px 0 0;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+
+    z-index: 1;
+
+    transition: height 0.25s ease-out;
+}
+
+.global-volume-shown {
+    height: 6rem;
+    padding: 0.5rem 0 1rem 0;
 }

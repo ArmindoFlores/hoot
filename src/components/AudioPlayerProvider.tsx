@@ -84,7 +84,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
                     shuffle: false,
                     autoplay: true,
                     repeatMode: "repeat-all",
-                    volume: 0.5,
+                    volume: 0.75,
                     duration: undefined
                 }
             };

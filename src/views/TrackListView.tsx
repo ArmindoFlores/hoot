@@ -10,7 +10,7 @@ export function TrackListView() {
     const { playing, setTrack } = useAudioPlayer();
     const playingPlaylists = useMemo(() => Object.keys(playing), [playing]);
 
-    const [ search, setSearch ] = useState<string>();
+    const [ search, setSearch ] = useState<string>("");
     const [ expandedPlaylists, setExpandedPlaylists ] = useState<string[]>([]);
     const [ hoveredTrack, setHoveredTrack ] = useState<Track>();
 
@@ -37,7 +37,7 @@ export function TrackListView() {
             return true;
         }
         const splitSearch = search.split(" ");
-        const playlists = splitSearch.filter(word => word.startsWith("#")).map(word => word.substring(1).toLowerCase());
+        const playlists = splitSearch.filter(word => word.startsWith("#")).map(word => word.substring(1).replace(/_/g, " ").toLowerCase());
         if (playlists.length === 0) {
             return true;
         }
