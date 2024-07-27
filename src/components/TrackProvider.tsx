@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 
-import jsonTracks from "../assets/tracks.json";
+import OBR from "@owlbear-rodeo/sdk";
+import localforage from "localforage";
 
 export interface Track {
     name: string;
@@ -11,32 +12,61 @@ export interface Track {
 interface TrackContextType {
     tracks: Map<string, Track[]>;
     playlists: string[];
+    importTracks: (tracks: Track[]) => void;
 };
 
+function trackArrayToMap(trackList: Track[]) {
+    const tracks = new Map<string, Track[]>();
+    for (const track of trackList) {
+        for (const playlist of track.playlists) {
+            if (!tracks.has(playlist)) {
+                tracks.set(playlist, []);
+            }
+            tracks.get(playlist)?.push(track);
+        }
+    }
+    return tracks;
+}
 
-const TrackContext = createContext<TrackContextType>({ tracks: new Map(), playlists: [] });
+const TrackContext = createContext<TrackContextType>({ tracks: new Map(), playlists: [], importTracks: () => {} });
 export const useTracks = () => useContext(TrackContext);
 
 export function TrackProvider({ children }: { children: React.ReactNode }) {
     const [ tracks, setTracks ] = useState<TrackContextType["tracks"]>(new Map());
     const [ playlists, setPlaylists ] = useState<TrackContextType["playlists"]>([]);
 
-    useEffect(() => {
-        // FIXME: load tracks for real
-        const tracks = new Map<string, Track[]>();
-        for (const track of jsonTracks) {
-            for (const playlist of track.playlists) {
-                if (!tracks.has(playlist)) {
-                    tracks.set(playlist, []);
-                }
-                tracks.get(playlist)?.push(track);
-            }
+    const importTracks = useCallback((trackList: Track[]) => {
+        try {
+            const tracks = trackArrayToMap(trackList);
+            setTracks(tracks);
+            setPlaylists(Array.from(tracks.keys()));
+            localforage.setItem("tracks", trackList);
+            OBR.notification.show("Tracks imported", "SUCCESS");
         }
-        setTracks(tracks);
-        setPlaylists(Array.from(tracks.keys()));
+        catch (e) {
+            console.error(e);
+            OBR.notification.show("Error importing tracks", "ERROR");
+        }
+    }, [setTracks, setPlaylists]);
+
+    useEffect(() => {
+        localforage.getItem("tracks").then(stored => {
+            if (stored == null) {
+                return;
+            }
+            try {
+                const tracks = trackArrayToMap(stored as Track[]);
+                setTracks(tracks);
+                setPlaylists(Array.from(tracks.keys()));
+            }
+            catch (e) {
+                console.error(e);
+                OBR.notification.show("Error loading tracks", "ERROR");
+            }
+        });
     }, []);
 
-    return <TrackContext.Provider value={{tracks, playlists}}>
+    return <TrackContext.Provider value={{tracks, playlists, importTracks}}>
         { children }
     </TrackContext.Provider>;
 }

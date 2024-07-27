@@ -4,12 +4,20 @@ import { useOBR, useOBRMessaging } from "../react-obr/providers";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { MessageContent } from "../types/messages";
+import OBR from "@owlbear-rodeo/sdk";
 import ReactSlider from "react-slider";
 import { SimpleTrack } from "../types/tracks";
 
 type TrackWithDuration = SimpleTrack & { duration?: number };
+interface PlayerAudioIndicatorProps {
+    playlist: string;
+    globalVolume: number;
+    track?: SimpleTrack;
+    autoplayError: () => void;
+    triggerPlayback: boolean;
+}
 
-function PlayerAudioIndicator({ playlist, globalVolume, track }: { playlist: string, globalVolume: number, track?: SimpleTrack }) {
+function PlayerAudioIndicator({ playlist, globalVolume, track, autoplayError, triggerPlayback }: PlayerAudioIndicatorProps) {
     const audioRef = useRef<HTMLAudioElement>(null);
 
     const [ trackWithDuration, setTrackWithDuration ] = useState<TrackWithDuration|undefined>(track);
@@ -50,13 +58,19 @@ function PlayerAudioIndicator({ playlist, globalVolume, track }: { playlist: str
     useEffect(() => {
         if (loaded) {
             if (trackWithDuration!.playing) {
-                audioRef.current!.play();
+                audioRef.current!.play().catch(() => {
+                    OBR.notification.show(
+                        "Autoplay is disabled. Please press the 'Reset Playback' button in the Hoot page.", 
+                        "WARNING"
+                    );
+                    autoplayError();
+                });
             }
             else {
                 audioRef.current!.pause();
             }
         }
-    }, [loaded, trackWithDuration]);
+    }, [loaded, trackWithDuration, triggerPlayback]);
 
     useEffect(() => {
         if (loaded) {
@@ -114,6 +128,8 @@ export function PlayerView() {
     const [ previousVolume, setPreviousVolume ] = useState(0.5);
     const [ volumeHovered, setVolumeHovered ] = useState(false);
     const [ mute, setMute ] = useState(false);
+    const [ autoplayErrorOccurred, setAutoplayErrorOccurred ] = useState(false);
+    const [ triggerPlayback, setTriggerPlayback ] = useState(false);
 
     const toggleMute = () => {
         if (volume === 0) {
@@ -124,6 +140,12 @@ export function PlayerView() {
             setMute(true);
             setVolume(0);
         }
+    }
+
+    const restartPlayback = () => { 
+        sendMessage({ type: "get-playlists" }, GMIDs);
+        setAutoplayErrorOccurred(false); 
+        setTriggerPlayback(old => !old); 
     }
 
     useEffect(() => {
@@ -176,7 +198,15 @@ export function PlayerView() {
     }, [party, setup]);
 
     return <div className="player-view">
-        <h2>Currently Playing</h2>
+        <div className="player-view-title">
+            <h2>Currently Playing</h2>
+            {
+                autoplayErrorOccurred &&
+                <div className="button clickable" onClick={restartPlayback}>
+                    Restart Playback
+                </div>
+            }
+        </div>
         <div className="player-track-display">
             {
                 playlists.length === 0 &&
@@ -186,7 +216,14 @@ export function PlayerView() {
             }
             {
                 playlists.map(playlist => (
-                    <PlayerAudioIndicator key={playlist} playlist={playlist} track={tracks[playlist]} globalVolume={volume} />
+                    <PlayerAudioIndicator
+                        key={playlist}
+                        playlist={playlist}
+                        track={tracks[playlist]}
+                        globalVolume={volume}
+                        triggerPlayback={triggerPlayback}
+                        autoplayError={() => setAutoplayErrorOccurred(true)} 
+                    />
                 ))
             }
         </div>

@@ -2,6 +2,7 @@ import { faGear, faList, faMusic, faUpload } from "@fortawesome/free-solid-svg-i
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AudioPlayerView } from "./AudioPlayerView";
+import { ExportView } from "./ExportView";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { MessageContent } from "../types/messages";
 import { TrackListView } from "./TrackListView";
@@ -99,7 +100,7 @@ export function GMView() {
             <AudioPlayerView />
         </div>
         <div className="body" style={{ display: selectedScreen === "export" ? undefined : "none"}}>
-            <p>Coming soon!</p>
+            <ExportView />
         </div>
         <div className="body" style={{ display: selectedScreen === "settings" ? undefined : "none"}}>
             <p>Coming soon!</p>
