@@ -14,20 +14,20 @@ export function Hoot() {
             return <p>Could not load Owlbear Extension.</p>;
         }
         if (player.role == "GM") {
-            return <TrackProvider>
-                <AudioPlayerProvider>
-                    <GMView />
-                </AudioPlayerProvider>
-            </TrackProvider>;
+            return <GMView />;
         }
         else {
             return <PlayerView />;
         }
-    }, [player]);
+    }, [player?.role]);
 
     return <>
         <OBRMessageProvider appKey="armindoflores-hoot">
-            <MainApp />
+            <TrackProvider>
+                <AudioPlayerProvider>
+                    <MainApp />
+                </AudioPlayerProvider>
+            </TrackProvider>
         </OBRMessageProvider>
     </>;
 }
