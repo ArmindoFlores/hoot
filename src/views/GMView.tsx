@@ -5,6 +5,7 @@ import { AudioPlayerView } from "./AudioPlayerView";
 import { ExportView } from "./ExportView";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { MessageContent } from "../types/messages";
+import { SettingsView } from "./Settings";
 import { TrackListView } from "./TrackListView";
 import { useArrayCompareMemoize } from "../hooks";
 import { useAudioPlayer } from "../components/AudioPlayerProvider";
@@ -106,7 +107,7 @@ export function GMView() {
             <ExportView />
         </div>
         <div className="body" style={{ display: selectedScreen === "settings" ? undefined : "none"}}>
-            <p>Coming soon!</p>
+            <SettingsView />
         </div>
     </>;
 }
