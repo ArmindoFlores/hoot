@@ -1,9 +1,10 @@
 {
     "name": "Hoot",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "manifest_version": 1,
     "author": "Armindo Flores",
     "icon": "/icon.svg",
+    "homepage_url": "https://github.com/ArmindoFlores/hoot",
     "description": "Hoot adds a music player to Owlbear Rodeo.",
     "action": {
       "title": "Hoot",
@@ -12,4 +13,4 @@
       "height": 500,
       "width": 500
     }
-  }
+}

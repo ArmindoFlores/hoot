@@ -31,6 +31,10 @@
     opacity: 0;
 }
 
+.disabled {
+    opacity: 0.35;
+}
+
 .button {
     background: rgb(45, 45, 45);
     border-radius: 10px;
@@ -318,11 +322,11 @@
 }
 
 .playback-control {
-    padding-right: 1rem;
+    margin-right: 1rem;
 }
 
 .play-button {
-    padding-right: 1rem;
+    margin-right: 1rem;
     font-size: 1.2rem;
     width: 1.2rem;
     width: 1rem;

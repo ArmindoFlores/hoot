@@ -1,3 +1,4 @@
+import { APP_KEY } from "../config";
 import { AudioPlayerProvider } from "../components/AudioPlayerProvider";
 import { GMView } from "./GMView";
 import { OBRMessageProvider } from "../react-obr/providers";
@@ -22,7 +23,7 @@ export function Hoot() {
     }, [player?.role]);
 
     return <>
-        <OBRMessageProvider appKey="armindoflores-hoot">
+        <OBRMessageProvider appKey={APP_KEY}>
             <TrackProvider>
                 <AudioPlayerProvider>
                     <MainApp />
