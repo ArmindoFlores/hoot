@@ -1,17 +1,18 @@
-import { faGear, faList, faMusic, faUpload } from "@fortawesome/free-solid-svg-icons";
+import { faGear, faImage, faList, faMusic, faUpload } from "@fortawesome/free-solid-svg-icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AudioPlayerView } from "./AudioPlayerView";
 import { ExportView } from "./ExportView";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { MessageContent } from "../types/messages";
+import { SceneView } from "./SceneView";
 import { SettingsView } from "./Settings";
 import { TrackListView } from "./TrackListView";
 import { useArrayCompareMemoize } from "../hooks";
 import { useAudioPlayer } from "../components/AudioPlayerProvider";
 import { useOBRMessaging } from "../react-obr/providers";
 
-type Screen = "track-list" | "player" | "export" | "settings";
+type Screen = "track-list" | "player" | "export" | "scene" | "settings";
 
 export function GMView() {
     const { sendMessage, registerMessageHandler } = useOBRMessaging();
@@ -70,24 +71,35 @@ export function GMView() {
         return <div className="navbar">
             <div
                 className={`navbar-icon ${selectedScreen === "track-list" ? "navbar-selected" : ""}`}
+                title="Track List"
                 onClick={() => setSelectedScreen("track-list")}
             >
                 <FontAwesomeIcon icon={faList} />
             </div>
             <div
                 className={`navbar-icon ${selectedScreen === "player" ? "navbar-selected" : ""}`}
+                title="Audio Player"
                 onClick={() => setSelectedScreen("player")}
             >
                 <FontAwesomeIcon icon={faMusic} />
             </div>
             <div
+                className={`navbar-icon ${selectedScreen === "scene" ? "navbar-selected" : ""}`}
+                title="Scene Configuration"
+                onClick={() => setSelectedScreen("scene")}
+            >
+                <FontAwesomeIcon icon={faImage} />
+            </div>
+            <div
                 className={`navbar-icon ${selectedScreen === "export" ? "navbar-selected" : ""}`}
+                title="Export/Import"
                 onClick={() => setSelectedScreen("export")}
             >
                 <FontAwesomeIcon icon={faUpload} />
             </div>
             <div
                 className={`navbar-icon ${selectedScreen === "settings" ? "navbar-selected" : ""}`}
+                title="Global Settings"
                 onClick={() => setSelectedScreen("settings")}
             >
                 <FontAwesomeIcon icon={faGear} />
@@ -102,6 +114,9 @@ export function GMView() {
         </div>
         <div className="body" style={{ display: selectedScreen === "player" ? undefined : "none"}}>
             <AudioPlayerView />
+        </div>
+        <div className="body" style={{ display: selectedScreen === "scene" ? undefined : "none"}}>
+            <SceneView />
         </div>
         <div className="body" style={{ display: selectedScreen === "export" ? undefined : "none"}}>
             <ExportView />

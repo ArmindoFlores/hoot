@@ -1,4 +1,5 @@
-export const APP_KEY = "armindoflores.hoot";
+export const REVERSE_DOMAIN = "eu.armindo";
+export const APP_KEY = `${REVERSE_DOMAIN}.hoot`;
 
 export const STORAGE_KEYS = {
     TRACKS: "tracks",

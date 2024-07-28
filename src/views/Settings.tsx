@@ -27,8 +27,8 @@ export function SettingsView() {
         setFadeInputValue(fadeTime.toString());
     }, [fadeTime]);
     
-    return <div className="settings-view">
-        <div className="settings-view-inner">
+    return <div className="generic-view">
+        <div className="generic-view-inner">
             <div className="setting-row">
                 <label htmlFor="fade-time" className="setting-label">Fade in/out time</label>
                 <div className="setting-value">
