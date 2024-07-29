@@ -10,6 +10,7 @@ interface BaseOBRContextType {
     setSceneMetadata: (metadata: Partial<Metadata>) => void;
     roomPermissions: Permission[];
     ready: boolean;
+    sceneReady: boolean;
 };
 
 const BaseOBRContext = createContext<BaseOBRContextType>({
@@ -21,6 +22,7 @@ const BaseOBRContext = createContext<BaseOBRContextType>({
     setSceneMetadata: () => {},
     roomPermissions: [],
     ready: false,
+    sceneReady: false,
 });
 export const useOBR = () => useContext(BaseOBRContext);
 
@@ -29,6 +31,7 @@ export function BaseOBRProvider({ children }: { children: React.ReactNode }) {
     const [ player, setPlayer ] = useState<Player|null>(null);
     const [ roomMetadata, _setRoomMetadata ] = useState<Metadata>({});
     const [ sceneMetadata, _setSceneMetadata ] = useState<Metadata>({});
+    const [ sceneReady, setSceneReady ] = useState(false);
     const [ roomPermissions, setRoomPermissions ] = useState<Permission[]>([]);
     const [ ready, setReady ] = useState(false);
 
@@ -95,6 +98,7 @@ export function BaseOBRProvider({ children }: { children: React.ReactNode }) {
         if (ready) {
             return OBR.scene.onReadyChange(ready => {
                 if (!ready) _setSceneMetadata({});
+                setSceneReady(ready);
             });
         }
     }, [ready])
@@ -107,6 +111,7 @@ export function BaseOBRProvider({ children }: { children: React.ReactNode }) {
                 OBR.room.getPermissions().then(setRoomPermissions),
                 OBR.room.getMetadata().then(_setRoomMetadata),
                 OBR.scene.getMetadata().then(_setSceneMetadata),
+                OBR.scene.isReady().then(setSceneReady),
                 OBR.player.getMetadata().then(metadata => OBR.player.setMetadata(metadata)), // Horrible, but only way to trigger Player.onChange?
             ]
             Promise.all(initPromises).then(() => console.log("Completed initialization."));
@@ -121,7 +126,7 @@ export function BaseOBRProvider({ children }: { children: React.ReactNode }) {
         OBR.scene.setMetadata(metadata);
     }
 
-    return <BaseOBRContext.Provider value={{ready, party, player, roomMetadata, sceneMetadata, setRoomMetadata, setSceneMetadata, roomPermissions}}>
+    return <BaseOBRContext.Provider value={{ready, sceneReady, party, player, roomMetadata, sceneMetadata, setRoomMetadata, setSceneMetadata, roomPermissions}}>
         { children }
     </BaseOBRContext.Provider>;
 }

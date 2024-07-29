@@ -27,7 +27,7 @@ interface AutoplayPlaylistItemProps {
 export function SceneView() {
     const { tracks, playlists } = useTracks();
     const { setPlaylist, playing } = useAudioPlayer();
-    const { sceneMetadata, setSceneMetadata } = useOBR();
+    const { sceneMetadata, setSceneMetadata, sceneReady } = useOBR();
 
     const [ autoplay, setAutoplay ] = useState<AutoplayList>([]);
 
@@ -208,27 +208,34 @@ export function SceneView() {
         <div className="generic-view-inner">
             <h2>Autoplay</h2>
             {
-                autoplay.length == 0 && 
+                sceneReady ? (<>
+                {
+                    autoplay.length == 0 && 
+                    <p>
+                        Currently, this scene has no defined playlist(s) to autoplay.
+                        Use the "Add Playlist" button to add one.
+                    </p>
+                }
+                {
+                    autoplay.map((autoplayEntry, index) => (
+                        <AutoplayPlaylistItem 
+                            key={index}
+                            autoplayEntry={autoplayEntry}
+                            setAutoplayEntry={(entry: AutoplayList[number]) => setAutoplayEntry(entry, index)}
+                        />
+                    ))
+                }
+                <br></br>
+                <div className="scene-button-container">
+                    <div className="button clickable unselectable" onClick={addNewPlaylist}>
+                        <p className="bold text-medium"><FontAwesomeIcon icon={faAdd} /> Add Playlist</p>
+                    </div>
+                </div>
+                </>) :
                 <p>
-                    Currently, this scene has no defined playlist(s) to autoplay.
-                    Use the "Add Playlist" button to add one.
+                    No scene loaded.
                 </p>
             }
-            {
-                autoplay.map((autoplayEntry, index) => (
-                    <AutoplayPlaylistItem 
-                        key={index}
-                        autoplayEntry={autoplayEntry}
-                        setAutoplayEntry={(entry: AutoplayList[number]) => setAutoplayEntry(entry, index)}
-                    />
-                ))
-            }
-            <br></br>
-            <div className="scene-button-container">
-                <div className="button clickable unselectable" onClick={addNewPlaylist}>
-                    <p className="bold text-medium"><FontAwesomeIcon icon={faAdd} /> Add Playlist</p>
-                </div>
-            </div>
         </div>
     </div>;
 }
