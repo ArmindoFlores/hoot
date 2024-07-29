@@ -48,18 +48,6 @@ export function GMView() {
                     );
                 }
             }
-            else if (messageContent.type === "track") {
-                // console.log("Sent track update:", messageContent.payload);
-            }
-            else if (messageContent.type === "playlists") {
-                // console.log("Sent playlists update:", messageContent.payload);
-            }
-            else if (messageContent.type === "fade") {
-                // console.log("Sent fade instruction:", messageContent.payload);
-            }
-            else {
-                console.error(`Received invalid message of type '${messageContent.type}':`, messageContent.payload);
-            }
         });
     }, [playing]);
 

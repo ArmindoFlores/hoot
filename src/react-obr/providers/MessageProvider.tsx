@@ -37,7 +37,7 @@ export function OBRMessageProvider({ children, appKey }: { children: React.React
             sender: player?.id,
             recipients: to,
             message: message
-        }, { destination: destination ?? "ALL" });
+        }, { destination: destination ?? "REMOTE" });
     }
 
     const registerMessageHandler = (handler: (msg: Message) => void) => {

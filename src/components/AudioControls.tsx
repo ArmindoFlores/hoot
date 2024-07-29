@@ -1,11 +1,12 @@
 import { Track, useTracks } from "./TrackProvider";
 import { faBackward, faClose, faForward, faPause, faPlay, faRepeat, faShuffle, faVolumeHigh, faVolumeLow, faVolumeOff } from "@fortawesome/free-solid-svg-icons";
 import { fadeInVolume, fadeOutVolume } from "../utils";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import FadeIn from "../assets/fadein.svg";
 import FadeOut from "../assets/fadeout.svg";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { MessageContent } from "../types/messages";
 import ReactSlider from "react-slider";
 import RepeatSelf from "../assets/repeat-self.svg";
 import { useAudioPlayer } from "./AudioPlayerProvider";
@@ -55,7 +56,7 @@ export function AudioControls(props: AudioControlsProps) {
     } = useAudioPlayer();
     const { fadeTime } = useSettings();
     const { tracks } = useTracks();
-    const { sendMessage } = useOBRMessaging();
+    const { sendMessage, registerMessageHandler } = useOBRMessaging();
 
     const current = useMemo(() => playing[props.playlist], [playing]);
     const audioRef = useRef<HTMLAudioElement>(null);
@@ -107,7 +108,7 @@ export function AudioControls(props: AudioControlsProps) {
         sendTrackUpdates();
     }
 
-    const handleFadeIn = () => {
+    const handleFadeIn = useCallback(() => {
         if (fading || current.playing || current.volume <= 0) return;
         
         setFading(true);
@@ -132,9 +133,9 @@ export function AudioControls(props: AudioControlsProps) {
                 setFading(false);
             }
         }, interval);
-    }
+    }, [fading, current.playing, current.volume, fadeTime]);
 
-    const handleFadeOut = () => {
+    const handleFadeOut = useCallback(() => {
         if (fading || !current.playing || current.volume <= 0) return;
         
         setFading(true);
@@ -158,7 +159,7 @@ export function AudioControls(props: AudioControlsProps) {
                 setFading(false);
             }
         }, interval);
-    }
+    }, [fading, current.playing, current.volume, fadeTime]);
 
     useEffect(() => {
         if (scheduledUpdate) {
@@ -246,6 +247,23 @@ export function AudioControls(props: AudioControlsProps) {
             sendTrackUpdates();
         }
     }, [loaded]);
+
+    useEffect(() => {
+        return registerMessageHandler(message => {
+            const messageContent = message.message as MessageContent;
+            if (messageContent.type === "fade") {
+                const payload = messageContent.payload as { fade: "in" | "out", playlist: string };
+                if (payload.playlist !== props.playlist) return;
+
+                if (payload.fade === "in") {
+                    handleFadeIn();
+                }
+                else if (payload.fade === "out") {
+                    handleFadeOut();
+                }
+            }
+        });
+    }, [fading, current.playing, current.volume, fadeTime]);
     
     return <div className="track-player-container">
         <audio src={current.track.source} ref={audioRef} onCanPlayThrough={() => setLoaded(true)} />
