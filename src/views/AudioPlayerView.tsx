@@ -9,7 +9,7 @@ import { useAudioPlayer } from "../components/AudioPlayerProvider";
 export function AudioPlayerView() {
     const { playing, volume, setVolume } = useAudioPlayer();
     const playingPlaylists = useMemo(() => Object.keys(playing), [playing]);
-    
+
     const [ previousVolume, setPreviousVolume ] = useState(volume); 
     const [ mute, setMute ] = useState(false);
     const [ volumeHovered, setVolumeHovered ] = useState(false);
