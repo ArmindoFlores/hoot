@@ -13,8 +13,10 @@ interface InternalMessage extends Message {
     recipients?: string[];
 }
 
+export type DestinationOptions = "REMOTE" | "LOCAL" | "ALL";
+
 interface OBRMessageContextType {
-    sendMessage: (message: unknown, to?: string[]) => void;
+    sendMessage: (message: unknown, to?: string[], destination?: DestinationOptions) => void;
     registerMessageHandler: (handler: (msg: Message) => void) => () => void;
 };
 
@@ -30,12 +32,12 @@ export function OBRMessageProvider({ children, appKey }: { children: React.React
     const [handlers, setHandlers] = useState<((msg: Message) => void)[]>([]);
     const [playerId, setPlayerId] = useState<string|undefined>(player?.id);
 
-    const sendMessage = (message: unknown, to?: string[]) => {
+    const sendMessage = (message: unknown, to?: string[], destination?: DestinationOptions) => {
         OBR.broadcast.sendMessage(appKey, {
             sender: player?.id,
             recipients: to,
             message: message
-        }, { destination: "ALL" });
+        }, { destination: destination ?? "ALL" });
     }
 
     const registerMessageHandler = (handler: (msg: Message) => void) => {

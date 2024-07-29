@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 
 import OBR from "@owlbear-rodeo/sdk";
+import { STORAGE_KEYS } from "../config";
 import localforage from "localforage";
 
 export interface Track {
@@ -40,7 +41,7 @@ export function TrackProvider({ children }: { children: React.ReactNode }) {
             const tracks = trackArrayToMap(trackList);
             setTracks(tracks);
             setPlaylists(Array.from(tracks.keys()));
-            localforage.setItem("tracks", trackList);
+            localforage.setItem(STORAGE_KEYS.TRACKS, trackList);
             OBR.notification.show("Tracks imported", "SUCCESS");
         }
         catch (e) {
@@ -50,7 +51,7 @@ export function TrackProvider({ children }: { children: React.ReactNode }) {
     }, [setTracks, setPlaylists]);
 
     useEffect(() => {
-        localforage.getItem("tracks").then(stored => {
+        localforage.getItem(STORAGE_KEYS.TRACKS).then(stored => {
             if (stored == null) {
                 return;
             }

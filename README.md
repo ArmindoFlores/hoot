@@ -7,10 +7,10 @@ Hoot is an [Owlbear Rodeo](https://owlbear.rodeo) extension that adds a music li
 Hoot organizes your music in tracks and playlists. A playlist is simply a list of tracks, and it is useful, for example, if you want Hoot to automatically start playing another track when the current finishes. You also have access to shuffle mode and repeating mode, which plays you tracks in a random order or repeats the same track over and over, respectively.
 
 ### Multiple Tracks
-Hoot allows you to play any number of tracks simultaneously, as long as they're from different playlists. This can be useful if you have a set of ambient sounds, for example, but also want to play some calming music. You can control each track's volume, repeating and shuffle mode, autoplay, and other properties individually. Additionally, there is a global volume slider that is applied after the individual volumes have been taken into account.
+Hoot allows you to play any number of tracks simultaneously, as long as they're from different playlists. This can be useful if you have a set of ambient sounds, for example, but also want to play some calming music. You can control each track's volume, repeating and shuffle mode, and other properties individually. Additionally, there is a global volume slider that is applied after the individual volumes have been taken into account.
 
 ### Effects
-Hoot supports fading in and fading out tracks for seemless transitions. In the future, it might also be possible to control fading time and other parameters.
+Hoot supports fading in and fading out tracks for seemless transitions. You can control the fading time from the settings tab.
 
 ### Import / Export
 Hoot allows you to import a track list from a JSON file. The following is an example:
@@ -27,6 +27,9 @@ Hoot allows you to import a track list from a JSON file. The following is an exa
 ```
 
 You can also add and remove tracks without having to import them from a file through the same menu. You can export all your tracks to this same format.
+
+### Autoplay
+You might also want to configure Hoot to play certain tracks or playlists when a specific scene is loaded. You can set this up in the "Scenes" tab. There, you can choose any number of tracks/playlists to be played and their respective settings.
 
 
 ## Limitations

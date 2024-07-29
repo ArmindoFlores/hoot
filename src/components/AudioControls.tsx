@@ -3,7 +3,6 @@ import { faBackward, faClose, faForward, faPause, faPlay, faRepeat, faShuffle, f
 import { fadeInVolume, fadeOutVolume } from "../utils";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { FADE_DURATION } from "../config";
 import FadeIn from "../assets/fadein.svg";
 import FadeOut from "../assets/fadeout.svg";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -11,6 +10,7 @@ import ReactSlider from "react-slider";
 import RepeatSelf from "../assets/repeat-self.svg";
 import { useAudioPlayer } from "./AudioPlayerProvider";
 import { useOBRMessaging } from "../react-obr/providers";
+import { useSettings } from "./SettingsProvider";
 import { useThrottled } from "../hooks";
 
 export interface AudioControlsProps {
@@ -53,6 +53,7 @@ export function AudioControls(props: AudioControlsProps) {
         setIsPlaying,
         setRepeatMode
     } = useAudioPlayer();
+    const { fadeTime } = useSettings();
     const { tracks } = useTracks();
     const { sendMessage } = useOBRMessaging();
 
@@ -113,12 +114,12 @@ export function AudioControls(props: AudioControlsProps) {
         const audio = audioRef.current!;
         audio.volume = 0;
         audio.play();
-        sendMessage({ type: "fade", payload: { playlist: props.playlist, fade: "in", duration: FADE_DURATION }});
+        sendMessage({ type: "fade", payload: { playlist: props.playlist, fade: "in", duration: fadeTime }});
         setIsPlaying(true, props.playlist);
 
         const targetVolume = current.volume;
         const interval = 50;
-        const steps = FADE_DURATION / interval;
+        const steps = fadeTime / interval;
 
         let currentStep = 0;
 
@@ -138,11 +139,11 @@ export function AudioControls(props: AudioControlsProps) {
         
         setFading(true);
         const audio = audioRef.current!;
-        sendMessage({ type: "fade", payload: { playlist: props.playlist, fade: "out", duration: FADE_DURATION } });
+        sendMessage({ type: "fade", payload: { playlist: props.playlist, fade: "out", duration: fadeTime } });
 
         const initialVolume = current.volume;
         const interval = 50;
-        const steps = FADE_DURATION / interval;
+        const steps = fadeTime / interval;
 
         let currentStep = 0;
 

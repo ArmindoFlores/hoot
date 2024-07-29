@@ -58,8 +58,8 @@ export function ExportView() {
         }
     };
     
-    return <div className="export-view">
-        <div className="export-view-inner">
+    return <div className="generic-view">
+        <div className="generic-view-inner">
             <div className="export-button-container">
                 <div className="button clickable unselectable" onClick={exportFile}>
                     <p className="bold text-medium"><FontAwesomeIcon icon={faFileExport} /> Export</p>

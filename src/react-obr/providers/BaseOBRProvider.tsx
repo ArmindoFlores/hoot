@@ -5,7 +5,9 @@ interface BaseOBRContextType {
     party: Player[];
     player: Player|null;
     roomMetadata: Metadata;
+    sceneMetadata: Metadata;
     setRoomMetadata: (metadata: Partial<Metadata>) => void;
+    setSceneMetadata: (metadata: Partial<Metadata>) => void;
     roomPermissions: Permission[];
     ready: boolean;
 };
@@ -14,7 +16,9 @@ const BaseOBRContext = createContext<BaseOBRContextType>({
     party: [],
     player: null,
     roomMetadata: {},
+    sceneMetadata: {},
     setRoomMetadata: () => {},
+    setSceneMetadata: () => {},
     roomPermissions: [],
     ready: false,
 });
@@ -24,6 +28,7 @@ export function BaseOBRProvider({ children }: { children: React.ReactNode }) {
     const [ party, setParty ] = useState<Player[]>([]);
     const [ player, setPlayer ] = useState<Player|null>(null);
     const [ roomMetadata, _setRoomMetadata ] = useState<Metadata>({});
+    const [ sceneMetadata, _setSceneMetadata ] = useState<Metadata>({});
     const [ roomPermissions, setRoomPermissions ] = useState<Permission[]>([]);
     const [ ready, setReady ] = useState(false);
 
@@ -67,6 +72,15 @@ export function BaseOBRProvider({ children }: { children: React.ReactNode }) {
         }
     }, [ready]);
 
+    // Subscribe to metadata changes
+    useEffect(() => {
+        if (ready) {
+            return OBR.scene.onMetadataChange(metadata => {
+                _setSceneMetadata(metadata);
+            });
+        }
+    }, [ready]);
+
     // Subscribe to permission changes
     useEffect(() => {
         if (ready) {
@@ -76,6 +90,15 @@ export function BaseOBRProvider({ children }: { children: React.ReactNode }) {
         }
     }, [ready]);
 
+    // Subscribe to scene readiness changes
+    useEffect(() => {
+        if (ready) {
+            return OBR.scene.onReadyChange(ready => {
+                if (!ready) _setSceneMetadata({});
+            });
+        }
+    }, [ready])
+
     // Initialize values after setup
     useEffect(() => {
         if (ready) {
@@ -83,6 +106,7 @@ export function BaseOBRProvider({ children }: { children: React.ReactNode }) {
                 OBR.party.getPlayers().then(setParty),
                 OBR.room.getPermissions().then(setRoomPermissions),
                 OBR.room.getMetadata().then(_setRoomMetadata),
+                OBR.scene.getMetadata().then(_setSceneMetadata),
                 OBR.player.getMetadata().then(metadata => OBR.player.setMetadata(metadata)), // Horrible, but only way to trigger Player.onChange?
             ]
             Promise.all(initPromises).then(() => console.log("Completed initialization."));
@@ -93,7 +117,11 @@ export function BaseOBRProvider({ children }: { children: React.ReactNode }) {
         OBR.room.setMetadata(metadata);
     }
 
-    return <BaseOBRContext.Provider value={{ready, party, player, roomMetadata, setRoomMetadata, roomPermissions}}>
+    const setSceneMetadata = (metadata: Partial<Metadata>) => {
+        OBR.scene.setMetadata(metadata);
+    }
+
+    return <BaseOBRContext.Provider value={{ready, party, player, roomMetadata, sceneMetadata, setRoomMetadata, setSceneMetadata, roomPermissions}}>
         { children }
     </BaseOBRContext.Provider>;
 }

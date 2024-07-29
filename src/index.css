@@ -57,10 +57,10 @@ body {
 input {
     color: var(--OBR-font);
     background-color: transparent;
-    font-size: 1.2rem;
+    font-size: 1.1rem;
 
     border-radius: 10px;
-    border-color: grey;
+    border-color: white;
     border-width: 1px;
     border-style: solid;
 
