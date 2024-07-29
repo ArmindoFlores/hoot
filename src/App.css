@@ -604,3 +604,9 @@
     align-items: center;
     justify-content: center;
 }
+
+.save-button-container {
+    position: absolute;
+    bottom: 0.25rem;
+    right: 0.5rem;
+}

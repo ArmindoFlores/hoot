@@ -9,19 +9,21 @@ function omitKey<T extends object, K extends keyof T>(obj: T, key: K): Omit<T, K
     return rest;
 }
 
+interface PlaylistInfo {
+    track: Track;
+    playing: boolean;
+    time: number;
+    duration?: number;
+    shuffle: boolean;
+    autoplay: boolean;
+    repeatMode: RepeatMode;
+    volume: number;
+};
+
 interface AudioPlayerContextType {
     volume: number;
     playing: {
-        [playlist: string]: {
-            track: Track;
-            playing: boolean;
-            time: number;
-            duration?: number;
-            shuffle: boolean;
-            autoplay: boolean;
-            repeatMode: RepeatMode;
-            volume: number;
-        };
+        [playlist: string]: PlaylistInfo;
     };
     setVolume: (volume: number, playlist?: string) => void;
     setTrack: (track: Track | undefined, playlist: string) => void;
@@ -31,6 +33,7 @@ interface AudioPlayerContextType {
     setAutoplay: (autoplay: boolean, playlist: string) => void;
     setIsPlaying: (playing: boolean, playlist: string) => void;
     setRepeatMode: (repeatMode: RepeatMode, playlist: string) => void;
+    setPlaylist: (playlist: string, info: PlaylistInfo) => void;
 };
 
 const AudioPlayerContext = createContext<AudioPlayerContextType>({ 
@@ -44,6 +47,7 @@ const AudioPlayerContext = createContext<AudioPlayerContextType>({
     setAutoplay: () => {},
     setIsPlaying: () => {},
     setRepeatMode: () => {},
+    setPlaylist: () => {},
 });
 export const useAudioPlayer = () => useContext(AudioPlayerContext);
 
@@ -89,6 +93,13 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
                 }
             };
         });
+    }, [playing]);
+
+    const setPlaylist = useCallback((playlist: string, info: PlaylistInfo) => {
+        setPlaying(oldPlaying => ({
+            ...oldPlaying,
+            [playlist]: info
+        }));
     }, [playing]);
 
     const setPlaybackTime = useCallback((time: number, playlist: string) => {
@@ -163,6 +174,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
             setAutoplay,
             setIsPlaying,
             setRepeatMode,
+            setPlaylist
         }}
     >
         { children }

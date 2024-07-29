@@ -90,6 +90,15 @@ export function BaseOBRProvider({ children }: { children: React.ReactNode }) {
         }
     }, [ready]);
 
+    // Subscribe to scene readiness changes
+    useEffect(() => {
+        if (ready) {
+            return OBR.scene.onReadyChange(ready => {
+                if (!ready) _setSceneMetadata({});
+            });
+        }
+    }, [ready])
+
     // Initialize values after setup
     useEffect(() => {
         if (ready) {

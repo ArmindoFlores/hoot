@@ -1,12 +1,12 @@
-import { faAdd, faClose, faRepeat } from "@fortawesome/free-solid-svg-icons";
+import { RepeatMode, useAudioPlayer } from "../components/AudioPlayerProvider";
+import { faAdd, faClose, faRepeat, faSave } from "@fortawesome/free-solid-svg-icons";
 import { useEffect, useState } from "react";
 
 import { APP_KEY } from "../config";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import OBR from "@owlbear-rodeo/sdk";
 import ReactSlider from "react-slider";
-import { RepeatMode } from "../components/AudioPlayerProvider";
 import RepeatSelf from "../assets/repeat-self.svg";
-import localforage from "localforage";
 import { useOBR } from "../react-obr/providers";
 import { useTracks } from "../components/TrackProvider";
 
@@ -19,14 +19,19 @@ type AutoplayList = {
     repeatMode: RepeatMode;
 }[];
 
+interface AutoplayPlaylistItemProps {
+    autoplayEntry: AutoplayList[number];
+    setAutoplayEntry: (entry: AutoplayList[number]) => void;
+}
+
 export function SceneView() {
     const { tracks, playlists } = useTracks();
-    const { sceneMetadata } = useOBR();
+    const { setPlaylist, playing } = useAudioPlayer();
+    const { sceneMetadata, setSceneMetadata } = useOBR();
 
     const [ autoplay, setAutoplay ] = useState<AutoplayList>([]);
 
-    function AutoplayPlaylistItem({ autoplayEntry }: { autoplayEntry: AutoplayList[number] }) {
-    
+    function AutoplayPlaylistItem({ autoplayEntry, setAutoplayEntry }: AutoplayPlaylistItemProps) {
         const [ playlist, setPlaylist ] = useState(autoplayEntry.playlist);
         const [ track, setTrack ] = useState(autoplayEntry.track);
         const [ shuffle, setShuffle ] = useState(autoplayEntry.shuffle);
@@ -45,6 +50,20 @@ export function SceneView() {
                 setRepeatMode("no-repeat");
             }
         }
+
+        const handleClose = () => {
+            setAutoplay(old => {
+                const arr = old.filter(item => item != autoplayEntry)
+                setSceneMetadata({
+                    [`${APP_KEY}/autoplay`]: arr.length > 0 ? arr : undefined
+                });
+                return arr;
+            });
+        }
+
+        const handleSave = () => {
+            setAutoplayEntry({ playlist, track, shuffle, fadeIn, repeatMode, volume });
+        }
     
         return <div className="autoplay-container">
             <div className="autoplay-row">
@@ -52,6 +71,7 @@ export function SceneView() {
                 <input
                     className={playlists.includes(playlist) ? undefined : "invalid-value"}
                     value={playlist}
+                    placeholder="playlist name"
                     onChange={(event) => setPlaylist(event.target.value)}
                 />
             </div>
@@ -63,6 +83,7 @@ export function SceneView() {
                         ? undefined : "invalid-value"
                     }
                     value={track}
+                    placeholder="track name"
                     onChange={(event) => setTrack(event.target.value)}
                 />
             </div>
@@ -108,9 +129,15 @@ export function SceneView() {
             </div>
             <div 
                 className="close-button-container clickable"
-                onClick={() => setAutoplay(old => old.filter(item => item != autoplayEntry))}
+                onClick={handleClose}
             >
                 <FontAwesomeIcon icon={faClose} />
+            </div>
+            <div 
+                className="save-button-container clickable"
+                onClick={handleSave}
+            >
+                <FontAwesomeIcon icon={faSave} />
             </div>
         </div>;
     }
@@ -129,14 +156,51 @@ export function SceneView() {
         ]);
     }
 
-    useEffect(() => {
-        const localForageKeySuffix = sceneMetadata[`${APP_KEY}/autoplay`];
-        if (typeof localForageKeySuffix === "string") {
-            localforage.getItem(`autoplay-scene-${localForageKeySuffix}`).then(autoplay => {
-                const autoplayList = autoplay as (AutoplayList|null);
-                if (autoplayList == null) return;
-                setAutoplay(autoplayList);
+    const setAutoplayEntry = (entry: AutoplayList[number], index: number) => {
+        setAutoplay(old => {
+            old.splice(index, 1, entry);
+            setSceneMetadata({
+                [`${APP_KEY}/autoplay`]: old
             });
+            return old;
+        });
+    }
+
+    useEffect(() => {
+        const autoplay = sceneMetadata[`${APP_KEY}/autoplay`] as (AutoplayList|undefined);
+        setAutoplay(autoplay ?? []);
+
+        // Start autoplay if it is setup
+        if (autoplay != undefined) {
+            for (const autoplayPlaylist of autoplay) {
+                const trackList = tracks.get(autoplayPlaylist.playlist);
+                if (trackList === undefined) {
+                    OBR.notification.show(`Could not find playlist "${autoplayPlaylist.playlist}" to autoplay`, "ERROR");
+                    continue;
+                }
+                // If a track was chosen, play that track. Else, if shuffling, play a random track.
+                // Otherwise, play the first track of the track list.
+                const index = autoplayPlaylist.shuffle ? Math.floor(Math.random() * trackList.length) : 0;
+                const track = autoplayPlaylist.track !== "" ? trackList.find(option => option.name === autoplayPlaylist.track) : trackList[index];
+                if (track === undefined) {
+                    OBR.notification.show(`Could not find track "${autoplayPlaylist.track}" to autoplay`, "ERROR");
+                    continue;
+                }
+                const currentlyPlaying = playing[autoplayPlaylist.playlist];
+                setPlaylist(
+                    autoplayPlaylist.playlist,
+                    {
+                        track,
+                        playing: true,
+                        time: currentlyPlaying?.time ?? 0,
+                        shuffle: autoplayPlaylist.shuffle,
+                        autoplay: true,
+                        repeatMode: autoplayPlaylist.repeatMode,
+                        volume: autoplayPlaylist.volume,
+                        duration: currentlyPlaying?.duration
+                    }
+                );
+            }
         }
     }, [sceneMetadata]);
 
@@ -152,7 +216,11 @@ export function SceneView() {
             }
             {
                 autoplay.map((autoplayEntry, index) => (
-                    <AutoplayPlaylistItem key={index} autoplayEntry={autoplayEntry} />
+                    <AutoplayPlaylistItem 
+                        key={index}
+                        autoplayEntry={autoplayEntry}
+                        setAutoplayEntry={(entry: AutoplayList[number]) => setAutoplayEntry(entry, index)}
+                    />
                 ))
             }
             <br></br>
