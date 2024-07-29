@@ -1,13 +1,14 @@
 import { RepeatMode, useAudioPlayer } from "../components/AudioPlayerProvider";
 import { faAdd, faClose, faRepeat, faSave } from "@fortawesome/free-solid-svg-icons";
 import { useEffect, useState } from "react";
+import { useOBR, useOBRMessaging } from "../react-obr/providers";
 
 import { APP_KEY } from "../config";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import OBR from "@owlbear-rodeo/sdk";
 import ReactSlider from "react-slider";
 import RepeatSelf from "../assets/repeat-self.svg";
-import { useOBR } from "../react-obr/providers";
+import { useSettings } from "../components/SettingsProvider";
 import { useTracks } from "../components/TrackProvider";
 
 type AutoplayList = {
@@ -27,7 +28,9 @@ interface AutoplayPlaylistItemProps {
 export function SceneView() {
     const { tracks, playlists } = useTracks();
     const { setPlaylist, playing } = useAudioPlayer();
+    const { stopOtherTracks } = useSettings();
     const { sceneMetadata, setSceneMetadata, sceneReady } = useOBR();
+    const { sendMessage } = useOBRMessaging();
 
     const [ autoplay, setAutoplay ] = useState<AutoplayList>([]);
 
@@ -169,7 +172,6 @@ export function SceneView() {
     useEffect(() => {
         const autoplay = sceneMetadata[`${APP_KEY}/autoplay`] as (AutoplayList|undefined);
         setAutoplay(autoplay ?? []);
-
         // Start autoplay if it is setup
         if (autoplay != undefined) {
             for (const autoplayPlaylist of autoplay) {
@@ -191,7 +193,7 @@ export function SceneView() {
                     autoplayPlaylist.playlist,
                     {
                         track,
-                        playing: true,
+                        playing: !autoplayPlaylist.fadeIn,      // For fade-in, we send a message later
                         time: currentlyPlaying?.time ?? 0,
                         shuffle: autoplayPlaylist.shuffle,
                         autoplay: true,
@@ -200,6 +202,40 @@ export function SceneView() {
                         duration: currentlyPlaying?.duration
                     }
                 );
+                if (autoplayPlaylist.fadeIn) {
+                    sendMessage(
+                        { 
+                            type: "fade",
+                            payload: {
+                                fade: "in",
+                                playlist: autoplayPlaylist.playlist
+                            }
+                        }, 
+                        undefined,
+                        "LOCAL"
+                    );
+                }
+            }
+            if (stopOtherTracks) {
+                for (const playlist of playlists) {
+                    // If it this playlist will be set by us, do nothing here
+                    if (autoplay.map(ap => ap.playlist).includes(playlist)) continue;
+
+                    // Else, fade it out
+                    const currentlyPlaying = playing[playlist];
+                    if (currentlyPlaying == undefined) continue;
+                    sendMessage(
+                        { 
+                            type: "fade",
+                            payload: {
+                                fade: "out",
+                                playlist
+                            }
+                        }, 
+                        undefined,
+                        "LOCAL"
+                    );
+                }
             }
         }
     }, [sceneMetadata]);
