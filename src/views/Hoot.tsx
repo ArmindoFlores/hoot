@@ -1,37 +1,52 @@
+import { BaseOBRProvider, useOBR } from "../react-obr/providers/BaseOBRProvider";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
+
 import { APP_KEY } from "../config";
+import { AddTrackView } from "./AddTrackView";
 import { AudioPlayerProvider } from "../components/AudioPlayerProvider";
 import { GMView } from "./GMView";
 import { OBRMessageProvider } from "../react-obr/providers";
 import { PlayerView } from "./PlayerView";
 import { SettingsProvider } from "../components/SettingsProvider";
 import { TrackProvider } from "../components/TrackProvider";
-import { useCallback } from "react";
-import { useOBR } from "../react-obr/providers/BaseOBRProvider";
 
-export function Hoot() {
+function MainApp() {
     const { player } = useOBR();
 
-    const MainApp = useCallback(() => {
-        if (player == null) {
-            return <p>Could not load Owlbear Extension.</p>;
-        }
-        if (player.role == "GM") {
-            return <GMView />;
-        }
-        else {
-            return <PlayerView />;
-        }
-    }, [player?.role]);
-
-    return <>
-        <OBRMessageProvider appKey={APP_KEY}>
-            <SettingsProvider>
-                <TrackProvider>
+    if (player == null) {
+        return <p>Could not load Owlbear Extension.</p>;
+    }
+    if (player.role == "GM") {
+        return <TrackProvider>
+                <SettingsProvider>
                     <AudioPlayerProvider>
-                        <MainApp />
+                        <GMView />
                     </AudioPlayerProvider>
-                </TrackProvider>
-            </SettingsProvider>
-        </OBRMessageProvider>
+                </SettingsProvider>
+            </TrackProvider>;
+    }
+    else {
+        return <PlayerView />
+    }
+}
+
+function AddTrackModal() {
+    return <TrackProvider>
+        <AddTrackView />
+    </TrackProvider>;
+}
+
+export function Hoot() {
+    return <>
+        <BaseOBRProvider>
+            <OBRMessageProvider appKey={APP_KEY}>
+                <BrowserRouter>
+                    <Routes>
+                        <Route path="/" element={<MainApp />} />
+                        <Route path="/add-track" element={<AddTrackModal />} />
+                    </Routes>
+                </BrowserRouter>
+            </OBRMessageProvider>
+        </BaseOBRProvider>
     </>;
 }
