@@ -6,7 +6,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useAudioPlayer } from "../components/AudioPlayerProvider";
 
 export function TrackListView() {
-    const { tracks, playlists } = useTracks();
+    const { tracks, playlists, removeTrack } = useTracks();
     const { playing, setTrack } = useAudioPlayer();
     const playingPlaylists = useMemo(() => Object.keys(playing), [playing]);
 
@@ -58,10 +58,6 @@ export function TrackListView() {
         setTrack(track, playlist);
     }, [setTrack]);
 
-    const deletePopup = useCallback((_track: Track) => {
-        alert("Not implemented!");
-    }, []);
-
     return <div className="track-list">
         <input 
             className="track-search"
@@ -105,7 +101,7 @@ export function TrackListView() {
                                                     <p onClick={() => playTrack(track, playlist)}>{ track.name }</p>
                                                     <FontAwesomeIcon 
                                                         icon={faTrash} 
-                                                        onClick={() => deletePopup(track)} 
+                                                        onClick={() => removeTrack(track.name, playlist)} 
                                                         style={{ opacity: hoveredTrack === track ? 1 : 0 }}
                                                     />
                                                 </div>

@@ -13,6 +13,8 @@ export interface Track {
 interface TrackContextType {
     tracks: Map<string, Track[]>;
     playlists: string[];
+    addTrack: (track: Track) => void;
+    removeTrack: (track: string, playlist: string) => void;
     importTracks: (tracks: Track[]) => void;
 };
 
@@ -29,12 +31,77 @@ function trackArrayToMap(trackList: Track[]) {
     return tracks;
 }
 
-const TrackContext = createContext<TrackContextType>({ tracks: new Map(), playlists: [], importTracks: () => {} });
+function trackMapToArray(tracks: Map<string, Track[]>) {
+    const result: Track[] = [];
+    for (const trackList of tracks.values()) {
+        for (const track of trackList) {
+            const existing = result.find(existingTrack => existingTrack.name === track.name && existingTrack.source === track.source);
+            if (existing) {
+                for (const playlist of track.playlists) {
+                    if (!existing.playlists.includes(playlist)) {
+                        existing.playlists.push(playlist);
+                    }
+                }
+            }
+            else {
+                result.push(track);
+            }
+        }
+    }
+    return result;
+}
+
+const TrackContext = createContext<TrackContextType>({
+    tracks: new Map(),
+    playlists: [],
+    addTrack: () => {},
+    removeTrack: () => {},
+    importTracks: () => {},
+});
 export const useTracks = () => useContext(TrackContext);
 
 export function TrackProvider({ children }: { children: React.ReactNode }) {
     const [ tracks, setTracks ] = useState<TrackContextType["tracks"]>(new Map());
     const [ playlists, setPlaylists ] = useState<TrackContextType["playlists"]>([]);
+
+    const addTrack = useCallback((track: Track) => {
+        for (const playlist of track.playlists) {
+            const playlistObject = tracks.get(playlist);
+            if (playlistObject != undefined) {
+                const existing = playlistObject.find(existingTrack => existingTrack.name === track.name);
+                if (existing === undefined) {
+                    playlistObject.push(track);
+                }
+            }
+            else {
+                tracks.set(playlist, [track]);
+            }
+        }
+        setTracks(tracks);
+        setPlaylists(Array.from(tracks.keys()));
+        localforage.setItem(STORAGE_KEYS.TRACKS, trackMapToArray(tracks)).then(
+            () => OBR.notification.show("Added track", "SUCCESS")
+        );
+    }, [tracks]);
+
+    const removeTrack = useCallback((track: string, playlist: string) => {
+        const trackList = tracks.get(playlist);
+        if (trackList == undefined) {
+            OBR.notification.show(`Invalid playlist '${playlist}'`, "ERROR");
+            return;
+        }
+        const newTrackList = trackList.filter(existingTrack => existingTrack.name !== track);
+        if (newTrackList.length === trackList.length) {
+            OBR.notification.show(`Invalid track '${track}'`, "ERROR");
+            return;
+        }
+        tracks.set(playlist, newTrackList);
+        setTracks(tracks);
+        setPlaylists(Array.from(tracks.keys()));
+        localforage.setItem(STORAGE_KEYS.TRACKS, trackMapToArray(tracks)).then(
+            () => OBR.notification.show("Deleted track", "SUCCESS")
+        );
+    }, [setTracks, setPlaylists]);
 
     const importTracks = useCallback((trackList: Track[]) => {
         try {
@@ -67,7 +134,7 @@ export function TrackProvider({ children }: { children: React.ReactNode }) {
         });
     }, []);
 
-    return <TrackContext.Provider value={{tracks, playlists, importTracks}}>
+    return <TrackContext.Provider value={{tracks, playlists, importTracks, addTrack, removeTrack}}>
         { children }
     </TrackContext.Provider>;
 }

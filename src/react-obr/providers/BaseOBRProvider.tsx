@@ -114,7 +114,7 @@ export function BaseOBRProvider({ children }: { children: React.ReactNode }) {
                 OBR.scene.isReady().then(setSceneReady),
                 OBR.player.getMetadata().then(metadata => OBR.player.setMetadata(metadata)), // Horrible, but only way to trigger Player.onChange?
             ]
-            Promise.all(initPromises).then(() => console.log("Completed initialization."));
+            Promise.all(initPromises).catch(() => null);
         }
     }, [ready]);
 

@@ -1,6 +1,8 @@
+import "react-toggle/style.css";
+
 import { RepeatMode, useAudioPlayer } from "../components/AudioPlayerProvider";
 import { faAdd, faClose, faRepeat, faSave } from "@fortawesome/free-solid-svg-icons";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useOBR, useOBRMessaging } from "../react-obr/providers";
 
 import { APP_KEY } from "../config";
@@ -8,6 +10,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import OBR from "@owlbear-rodeo/sdk";
 import ReactSlider from "react-slider";
 import RepeatSelf from "../assets/repeat-self.svg";
+import Toggle from "react-toggle";
 import { useSettings } from "../components/SettingsProvider";
 import { useTracks } from "../components/TrackProvider";
 
@@ -33,8 +36,9 @@ export function SceneView() {
     const { sendMessage } = useOBRMessaging();
 
     const [ autoplay, setAutoplay ] = useState<AutoplayList>([]);
+    const [ playlistsToFadeIn, setPlaylistsToFadeIn ] = useState<{ playlist: string, track: string }[]>([]);
 
-    function AutoplayPlaylistItem({ autoplayEntry, setAutoplayEntry }: AutoplayPlaylistItemProps) {
+    const AutoplayPlaylistItem = useCallback(({ autoplayEntry, setAutoplayEntry }: AutoplayPlaylistItemProps) => {
         const [ playlist, setPlaylist ] = useState(autoplayEntry.playlist);
         const [ track, setTrack ] = useState(autoplayEntry.track);
         const [ shuffle, setShuffle ] = useState(autoplayEntry.shuffle);
@@ -72,7 +76,7 @@ export function SceneView() {
             <div className="autoplay-row">
                 <label>Playlist name</label>
                 <input
-                    className={playlists.includes(playlist) ? undefined : "invalid-value"}
+                    className={`small-input ${playlists.includes(playlist) ? "" : "invalid-value"}`}
                     value={playlist}
                     placeholder="playlist name"
                     onChange={(event) => setPlaylist(event.target.value)}
@@ -81,10 +85,10 @@ export function SceneView() {
             <div className="autoplay-row">
                 <label>Track name</label>
                 <input
-                    className={
-                        (track =="" || tracks.get(playlist)?.map?.(track => track.name)?.includes?.(track))
-                        ? undefined : "invalid-value"
-                    }
+                    className={`small-input ${
+                        (track == "" || tracks.get(playlist)?.map?.(track => track.name)?.includes?.(track))
+                        ? "" : "invalid-value"
+                    }`}
                     value={track}
                     placeholder="track name"
                     onChange={(event) => setTrack(event.target.value)}
@@ -93,11 +97,15 @@ export function SceneView() {
             <div className="autoplay-row">
                 <div className="autoplay-subrow">
                     <label>Shuffle</label>
-                    <input checked={shuffle} onChange={(value) => setShuffle(value.target.checked)} type="checkbox" />
+                    <div style={{paddingLeft: "0.25rem", display: "flex"}}>
+                        <Toggle checked={shuffle} onChange={(value) => setShuffle(value.target.checked)} type="checkbox" />
+                    </div>
                 </div>
                 <div className="autoplay-subrow">
                     <label>Fade in</label>
-                    <input checked={fadeIn} onChange={(value) => setFadeIn(value.target.checked)} type="checkbox" />
+                    <div style={{paddingLeft: "0.25rem", display: "flex"}}>
+                        <Toggle checked={fadeIn} onChange={(value) => setFadeIn(value.target.checked)} type="checkbox" />
+                    </div>
                 </div>
             </div>
             <div className="autoplay-row">
@@ -131,7 +139,7 @@ export function SceneView() {
                 </div>
             </div>
             <div 
-                className="close-button-container clickable"
+                className="remove-button-container clickable"
                 onClick={handleClose}
             >
                 <FontAwesomeIcon icon={faClose} />
@@ -143,7 +151,7 @@ export function SceneView() {
                 <FontAwesomeIcon icon={faSave} />
             </div>
         </div>;
-    }
+    }, [setAutoplay, playlists, setSceneMetadata]);
 
     const addNewPlaylist = () => {
         setAutoplay([
@@ -172,8 +180,17 @@ export function SceneView() {
     useEffect(() => {
         const autoplay = sceneMetadata[`${APP_KEY}/autoplay`] as (AutoplayList|undefined);
         setAutoplay(autoplay ?? []);
+        setPlaylistsToFadeIn([]);
+    }, [sceneMetadata]);
+
+    useEffect(() => {
+        const autoplay = sceneMetadata[`${APP_KEY}/autoplay`] as (AutoplayList|undefined);
+        setAutoplay(autoplay ?? []);
+
         // Start autoplay if it is setup
-        if (autoplay != undefined) {
+        if (sceneReady && autoplay != undefined) {
+            const playlistsToFadeIn: { playlist: string, track: string }[] = [];
+
             for (const autoplayPlaylist of autoplay) {
                 const trackList = tracks.get(autoplayPlaylist.playlist);
                 if (trackList === undefined) {
@@ -183,39 +200,38 @@ export function SceneView() {
                 // If a track was chosen, play that track. Else, if shuffling, play a random track.
                 // Otherwise, play the first track of the track list.
                 const index = autoplayPlaylist.shuffle ? Math.floor(Math.random() * trackList.length) : 0;
-                const track = autoplayPlaylist.track !== "" ? trackList.find(option => option.name === autoplayPlaylist.track) : trackList[index];
+                const currentlyPlaying = playing[autoplayPlaylist.playlist];
+                const track = autoplayPlaylist.track !== "" ? trackList.find(option => option.name === autoplayPlaylist.track) : (currentlyPlaying ? currentlyPlaying.track : trackList[index]);
                 if (track === undefined) {
                     OBR.notification.show(`Could not find track "${autoplayPlaylist.track}" to autoplay`, "ERROR");
                     continue;
                 }
-                const currentlyPlaying = playing[autoplayPlaylist.playlist];
+                const isSameTrack = currentlyPlaying && (currentlyPlaying.track.name === autoplayPlaylist.track || autoplayPlaylist.track === "");
+                const canFadeIn = (!isSameTrack || currentlyPlaying.playing === false) && autoplayPlaylist.fadeIn;
                 setPlaylist(
                     autoplayPlaylist.playlist,
                     {
                         track,
-                        playing: !autoplayPlaylist.fadeIn,      // For fade-in, we send a message later
-                        time: currentlyPlaying?.time ?? 0,
+                        playing: !canFadeIn,  // For fade-in, we send a message later
+                        time: (isSameTrack ? currentlyPlaying?.time : 0) ?? 0,
                         shuffle: autoplayPlaylist.shuffle,
-                        autoplay: true,
+                        loaded: (isSameTrack ? currentlyPlaying?.loaded : false) ?? false,
                         repeatMode: autoplayPlaylist.repeatMode,
                         volume: autoplayPlaylist.volume,
-                        duration: currentlyPlaying?.duration
+                        duration: isSameTrack ? currentlyPlaying?.duration : undefined
                     }
                 );
-                if (autoplayPlaylist.fadeIn) {
-                    sendMessage(
-                        { 
-                            type: "fade",
-                            payload: {
-                                fade: "in",
-                                playlist: autoplayPlaylist.playlist
-                            }
-                        }, 
-                        undefined,
-                        "LOCAL"
-                    );
+                if (canFadeIn) {
+                    playlistsToFadeIn.push({
+                        track: autoplayPlaylist.track,
+                        playlist: autoplayPlaylist.playlist
+                    });
                 }
             }
+
+            //  After this render, fade in the missing playlists 
+            setPlaylistsToFadeIn(playlistsToFadeIn);
+
             if (stopOtherTracks) {
                 for (const playlist of playlists) {
                     // If it this playlist will be set by us, do nothing here
@@ -238,7 +254,37 @@ export function SceneView() {
                 }
             }
         }
-    }, [sceneMetadata]);
+    }, [sceneReady]);
+
+    useEffect(() => {
+        // This will run after entering a new scene, and after the initial track
+        // setup is performed, so that all playlists are ready to fade in.
+        if (playlistsToFadeIn.length) {
+            const startedPlaylists: string[] = [];
+            for (const { playlist, track } of playlistsToFadeIn) {
+                const playingPlaylist = playing[playlist];
+                if (playingPlaylist?.playing === undefined || playingPlaylist.playing) continue;
+                if (track != "" && playingPlaylist.track.name !== track) continue;
+                if (!playingPlaylist.loaded) continue;
+                sendMessage(
+                    {
+                        type: "fade",
+                        payload: {
+                            fade: "in",
+                            playlist
+                        }
+                    }, 
+                    undefined,
+                    "LOCAL"
+                );
+                startedPlaylists.push(playlist);
+            }
+            const newPlaylists = playlistsToFadeIn.filter(({ playlist }) => !startedPlaylists.includes(playlist))
+            if (newPlaylists.length < playlistsToFadeIn.length) {
+                setPlaylistsToFadeIn(newPlaylists);
+            }
+        }
+    }, [playlistsToFadeIn, playing]);
 
     return <div className="generic-view">
         <div className="generic-view-inner">

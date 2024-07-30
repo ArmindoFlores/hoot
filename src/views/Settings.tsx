@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import Toggle from "react-toggle";
 import { useSettings } from "../components/SettingsProvider";
 
 export function SettingsView() {
@@ -37,14 +38,12 @@ export function SettingsView() {
             <div className="setting-row">
                 <label htmlFor="fade-time" className="setting-label">Fade in/out time</label>
                 <div className="setting-value">
-                    <input id="fade-time" className={invalidFadeValue ? "invalid-value" : undefined} value={fadeInputValue} onChange={handleChange} /> ms
+                    <input id="fade-time" className={`small-input ${invalidFadeValue ? "invalid-value" : ""}`} value={fadeInputValue} onChange={handleChange} /> ms
                 </div>
             </div>
             <div className="setting-row">
                 <label htmlFor="stop-old-tracks" className="setting-label">Stop old tracks when autoplaying</label>
-                <div className="setting-value">
-                    <input id="stop-old-tracks" checked={stopOtherTracks} onChange={event => setStopOtherTracks(event.target.checked)} type="checkbox" />
-                </div>
+                <Toggle id="stop-old-tracks" checked={stopOtherTracks} onChange={event => setStopOtherTracks(event.target.checked)} type="checkbox" />
             </div>
         </div>
     </div>;

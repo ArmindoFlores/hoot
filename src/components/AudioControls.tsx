@@ -52,6 +52,7 @@ export function AudioControls(props: AudioControlsProps) {
         setDuration,
         setShuffle,
         setIsPlaying,
+        setLoaded,
         setRepeatMode
     } = useAudioPlayer();
     const { fadeTime } = useSettings();
@@ -62,7 +63,7 @@ export function AudioControls(props: AudioControlsProps) {
     const audioRef = useRef<HTMLAudioElement>(null);
     
     const [ shuffled, setShuffled ] = useState<typeof tracks>(new Map());
-    const [ loaded, setLoaded ] = useState(false);
+    const [ loaded, setTrackLoaded ] = useState(false);
     const [ scheduledUpdate, setScheduledUpdate ] = useState(false);
     const [ fading, setFading ] = useState(false);
 
@@ -110,7 +111,6 @@ export function AudioControls(props: AudioControlsProps) {
 
     const handleFadeIn = useCallback(() => {
         if (fading || current.playing || current.volume <= 0) return;
-        
         setFading(true);
         const audio = audioRef.current!;
         audio.volume = 0;
@@ -215,10 +215,11 @@ export function AudioControls(props: AudioControlsProps) {
                 audioElement.removeEventListener("ended", handleEnded);
             };
         }
-    }, [current.repeatMode, current.shuffle, current.track.name, tracks]);
+    }, [current.repeatMode, current.shuffle, current.track?.name, tracks]);
 
     useEffect(() => {
-        setLoaded(false);
+        setLoaded(false, props.playlist);
+        setTrackLoaded(false);
     }, [current.track.name]);
 
     useEffect(() => {
@@ -242,11 +243,14 @@ export function AudioControls(props: AudioControlsProps) {
 
     useEffect(() => {
         if (loaded) {
+            console.log("Loaded", props.playlist);
             setDuration(audioRef.current!.duration, props.playlist);
             setPlaybackTime(0, props.playlist);
             sendTrackUpdates();
         }
     }, [loaded]);
+
+    useEffect(() => console.log("Mounted", props.playlist), []);
 
     useEffect(() => {
         return registerMessageHandler(message => {
@@ -254,7 +258,7 @@ export function AudioControls(props: AudioControlsProps) {
             if (messageContent.type === "fade") {
                 const payload = messageContent.payload as { fade: "in" | "out", playlist: string };
                 if (payload.playlist !== props.playlist) return;
-
+                
                 if (payload.fade === "in") {
                     handleFadeIn();
                 }
@@ -266,7 +270,7 @@ export function AudioControls(props: AudioControlsProps) {
     }, [fading, current.playing, current.volume, fadeTime]);
     
     return <div className="track-player-container">
-        <audio src={current.track.source} ref={audioRef} onCanPlayThrough={() => setLoaded(true)} />
+        <audio src={current.track.source} ref={audioRef} onCanPlayThrough={() => { setTrackLoaded(true); setLoaded(true, props.playlist); }} />
         <div className="volume-widget">
             <ReactSlider
                 className="volume-slider"

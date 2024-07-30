@@ -4,6 +4,7 @@ import { useCallback, useRef } from "react";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import OBR from "@owlbear-rodeo/sdk";
+import { addTrackModal } from "./AddTrackView";
 
 export function ExportView() {
     const { tracks, importTracks } = useTracks();
@@ -64,7 +65,7 @@ export function ExportView() {
                 <div className="button clickable unselectable" onClick={exportFile}>
                     <p className="bold text-medium"><FontAwesomeIcon icon={faFileExport} /> Export</p>
                 </div>
-                <div className="button unselectable">
+                <div className="button clickable unselectable" onClick={() => OBR.modal.open(addTrackModal)}>
                     <p className="bold text-medium"><FontAwesomeIcon icon={faAdd} /> Add Track</p>
                 </div>
                 <div className="button clickable unselectable" onClick={() => fileInputRef.current?.click?.()}>
