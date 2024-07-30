@@ -38,7 +38,7 @@ export function useThrottled<F extends (...args: any[]) => R, R>(fn: F, delay: n
     return throttledFunc;
 }
 
-function arrayEqual<T>(arr1: T[], arr2: T[]): boolean {
+export function arrayEqual<T>(arr1: T[], arr2: T[]): boolean {
     if (arr1.length !== arr2.length) return false;
     for (let i = 0; i < arr1.length; i++) {
         if (arr1[i] !== arr2[i]) return false;

@@ -1,6 +1,8 @@
+import "react-toggle/style.css";
+
 import { RepeatMode, useAudioPlayer } from "../components/AudioPlayerProvider";
 import { faAdd, faClose, faRepeat, faSave } from "@fortawesome/free-solid-svg-icons";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useOBR, useOBRMessaging } from "../react-obr/providers";
 
 import { APP_KEY } from "../config";
@@ -8,6 +10,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import OBR from "@owlbear-rodeo/sdk";
 import ReactSlider from "react-slider";
 import RepeatSelf from "../assets/repeat-self.svg";
+import Toggle from "react-toggle";
 import { useSettings } from "../components/SettingsProvider";
 import { useTracks } from "../components/TrackProvider";
 
@@ -34,7 +37,7 @@ export function SceneView() {
 
     const [ autoplay, setAutoplay ] = useState<AutoplayList>([]);
 
-    function AutoplayPlaylistItem({ autoplayEntry, setAutoplayEntry }: AutoplayPlaylistItemProps) {
+    const AutoplayPlaylistItem = useCallback(({ autoplayEntry, setAutoplayEntry }: AutoplayPlaylistItemProps) => {
         const [ playlist, setPlaylist ] = useState(autoplayEntry.playlist);
         const [ track, setTrack ] = useState(autoplayEntry.track);
         const [ shuffle, setShuffle ] = useState(autoplayEntry.shuffle);
@@ -72,7 +75,7 @@ export function SceneView() {
             <div className="autoplay-row">
                 <label>Playlist name</label>
                 <input
-                    className={playlists.includes(playlist) ? undefined : "invalid-value"}
+                    className={`small-input ${playlists.includes(playlist) ? "" : "invalid-value"}`}
                     value={playlist}
                     placeholder="playlist name"
                     onChange={(event) => setPlaylist(event.target.value)}
@@ -81,10 +84,10 @@ export function SceneView() {
             <div className="autoplay-row">
                 <label>Track name</label>
                 <input
-                    className={
-                        (track =="" || tracks.get(playlist)?.map?.(track => track.name)?.includes?.(track))
-                        ? undefined : "invalid-value"
-                    }
+                    className={`small-input ${
+                        (track == "" || tracks.get(playlist)?.map?.(track => track.name)?.includes?.(track))
+                        ? "" : "invalid-value"
+                    }`}
                     value={track}
                     placeholder="track name"
                     onChange={(event) => setTrack(event.target.value)}
@@ -93,11 +96,15 @@ export function SceneView() {
             <div className="autoplay-row">
                 <div className="autoplay-subrow">
                     <label>Shuffle</label>
-                    <input checked={shuffle} onChange={(value) => setShuffle(value.target.checked)} type="checkbox" />
+                    <div style={{paddingLeft: "0.25rem", display: "flex"}}>
+                        <Toggle checked={shuffle} onChange={(value) => setShuffle(value.target.checked)} type="checkbox" />
+                    </div>
                 </div>
                 <div className="autoplay-subrow">
                     <label>Fade in</label>
-                    <input checked={fadeIn} onChange={(value) => setFadeIn(value.target.checked)} type="checkbox" />
+                    <div style={{paddingLeft: "0.25rem", display: "flex"}}>
+                        <Toggle checked={fadeIn} onChange={(value) => setFadeIn(value.target.checked)} type="checkbox" />
+                    </div>
                 </div>
             </div>
             <div className="autoplay-row">
@@ -131,7 +138,7 @@ export function SceneView() {
                 </div>
             </div>
             <div 
-                className="close-button-container clickable"
+                className="remove-button-container clickable"
                 onClick={handleClose}
             >
                 <FontAwesomeIcon icon={faClose} />
@@ -143,7 +150,7 @@ export function SceneView() {
                 <FontAwesomeIcon icon={faSave} />
             </div>
         </div>;
-    }
+    }, [setAutoplay, playlists, setSceneMetadata]);
 
     const addNewPlaylist = () => {
         setAutoplay([
