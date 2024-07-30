@@ -15,7 +15,7 @@ interface PlaylistInfo {
     time: number;
     duration?: number;
     shuffle: boolean;
-    autoplay: boolean;
+    loaded: boolean;
     repeatMode: RepeatMode;
     volume: number;
 };
@@ -30,7 +30,7 @@ interface AudioPlayerContextType {
     setPlaybackTime: (time: number, playlist: string) => void;
     setDuration: (duration: number, playlist: string) => void;
     setShuffle: (shuffle: boolean, playlist: string) => void;
-    setAutoplay: (autoplay: boolean, playlist: string) => void;
+    setLoaded: (loaded: boolean, playlist: string) => void;
     setIsPlaying: (playing: boolean, playlist: string) => void;
     setRepeatMode: (repeatMode: RepeatMode, playlist: string) => void;
     setPlaylist: (playlist: string, info: PlaylistInfo) => void;
@@ -44,7 +44,7 @@ const AudioPlayerContext = createContext<AudioPlayerContextType>({
     setPlaybackTime: () => {},
     setDuration: () => {},
     setShuffle: () => {},
-    setAutoplay: () => {},
+    setLoaded: () => {},
     setIsPlaying: () => {},
     setRepeatMode: () => {},
     setPlaylist: () => {},
@@ -86,7 +86,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
                     playing: false,
                     time: 0,
                     shuffle: false,
-                    autoplay: true,
+                    loaded: false,
                     repeatMode: "repeat-all",
                     volume: 0.75,
                     duration: undefined
@@ -132,12 +132,12 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         }));
     }, [playing]);
 
-    const setAutoplay = useCallback((autoplay: boolean, playlist: string) => {
+    const setLoaded = useCallback((loaded: boolean, playlist: string) => {
         setPlaying(oldPlaying => ({
             ...oldPlaying,
             [playlist]: {
                 ...oldPlaying[playlist],
-                autoplay
+                loaded
             }
         }));
     }, [playing]);
@@ -171,7 +171,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
             setPlaybackTime,
             setDuration,
             setShuffle,
-            setAutoplay,
+            setLoaded,
             setIsPlaying,
             setRepeatMode,
             setPlaylist

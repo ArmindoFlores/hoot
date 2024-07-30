@@ -36,6 +36,7 @@ export function SceneView() {
     const { sendMessage } = useOBRMessaging();
 
     const [ autoplay, setAutoplay ] = useState<AutoplayList>([]);
+    const [ playlistsToFadeIn, setPlaylistsToFadeIn ] = useState<{ playlist: string, track: string }[]>([]);
 
     const AutoplayPlaylistItem = useCallback(({ autoplayEntry, setAutoplayEntry }: AutoplayPlaylistItemProps) => {
         const [ playlist, setPlaylist ] = useState(autoplayEntry.playlist);
@@ -179,8 +180,17 @@ export function SceneView() {
     useEffect(() => {
         const autoplay = sceneMetadata[`${APP_KEY}/autoplay`] as (AutoplayList|undefined);
         setAutoplay(autoplay ?? []);
+        setPlaylistsToFadeIn([]);
+    }, [sceneMetadata]);
+
+    useEffect(() => {
+        const autoplay = sceneMetadata[`${APP_KEY}/autoplay`] as (AutoplayList|undefined);
+        setAutoplay(autoplay ?? []);
+
         // Start autoplay if it is setup
-        if (autoplay != undefined) {
+        if (sceneReady && autoplay != undefined) {
+            const playlistsToFadeIn: { playlist: string, track: string }[] = [];
+
             for (const autoplayPlaylist of autoplay) {
                 const trackList = tracks.get(autoplayPlaylist.playlist);
                 if (trackList === undefined) {
@@ -190,39 +200,38 @@ export function SceneView() {
                 // If a track was chosen, play that track. Else, if shuffling, play a random track.
                 // Otherwise, play the first track of the track list.
                 const index = autoplayPlaylist.shuffle ? Math.floor(Math.random() * trackList.length) : 0;
-                const track = autoplayPlaylist.track !== "" ? trackList.find(option => option.name === autoplayPlaylist.track) : trackList[index];
+                const currentlyPlaying = playing[autoplayPlaylist.playlist];
+                const track = autoplayPlaylist.track !== "" ? trackList.find(option => option.name === autoplayPlaylist.track) : (currentlyPlaying ? currentlyPlaying.track : trackList[index]);
                 if (track === undefined) {
                     OBR.notification.show(`Could not find track "${autoplayPlaylist.track}" to autoplay`, "ERROR");
                     continue;
                 }
-                const currentlyPlaying = playing[autoplayPlaylist.playlist];
+                const isSameTrack = currentlyPlaying && (currentlyPlaying.track.name === autoplayPlaylist.track || autoplayPlaylist.track === "");
+                const canFadeIn = (!isSameTrack || currentlyPlaying.playing === false) && autoplayPlaylist.fadeIn;
                 setPlaylist(
                     autoplayPlaylist.playlist,
                     {
                         track,
-                        playing: !autoplayPlaylist.fadeIn,      // For fade-in, we send a message later
-                        time: currentlyPlaying?.time ?? 0,
+                        playing: !canFadeIn,  // For fade-in, we send a message later
+                        time: (isSameTrack ? currentlyPlaying?.time : 0) ?? 0,
                         shuffle: autoplayPlaylist.shuffle,
-                        autoplay: true,
+                        loaded: (isSameTrack ? currentlyPlaying?.loaded : false) ?? false,
                         repeatMode: autoplayPlaylist.repeatMode,
                         volume: autoplayPlaylist.volume,
-                        duration: currentlyPlaying?.duration
+                        duration: isSameTrack ? currentlyPlaying?.duration : undefined
                     }
                 );
-                if (autoplayPlaylist.fadeIn) {
-                    sendMessage(
-                        { 
-                            type: "fade",
-                            payload: {
-                                fade: "in",
-                                playlist: autoplayPlaylist.playlist
-                            }
-                        }, 
-                        undefined,
-                        "LOCAL"
-                    );
+                if (canFadeIn) {
+                    playlistsToFadeIn.push({
+                        track: autoplayPlaylist.track,
+                        playlist: autoplayPlaylist.playlist
+                    });
                 }
             }
+
+            //  After this render, fade in the missing playlists 
+            setPlaylistsToFadeIn(playlistsToFadeIn);
+
             if (stopOtherTracks) {
                 for (const playlist of playlists) {
                     // If it this playlist will be set by us, do nothing here
@@ -245,7 +254,38 @@ export function SceneView() {
                 }
             }
         }
-    }, [sceneMetadata]);
+    }, [sceneReady]);
+
+    useEffect(() => {
+        // This will run after entering a new scene, and after the initial track
+        // setup is performed, so that all playlists are ready to fade in.
+        if (playlistsToFadeIn.length) {
+            console.log("Checking readiness...");
+            const startedPlaylists: string[] = [];
+            for (const { playlist, track } of playlistsToFadeIn) {
+                const playingPlaylist = playing[playlist];
+                if (playingPlaylist?.playing === undefined || playingPlaylist.playing) return;
+                if (track != "" && playingPlaylist.track.name !== track) return;
+                if (!playingPlaylist.loaded) return;
+                sendMessage(
+                    {
+                        type: "fade",
+                        payload: {
+                            fade: "in",
+                            playlist
+                        }
+                    }, 
+                    undefined,
+                    "LOCAL"
+                );
+                startedPlaylists.push(playlist);
+            }
+            console.log("Started", startedPlaylists);
+            const newPlaylists = playlistsToFadeIn.filter(({ playlist }) => !startedPlaylists.includes(playlist))
+            setPlaylistsToFadeIn(newPlaylists);
+            console.log("New:", newPlaylists);
+        }
+    }, [playlistsToFadeIn, playing]);
 
     return <div className="generic-view">
         <div className="generic-view-inner">
