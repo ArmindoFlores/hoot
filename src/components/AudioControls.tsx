@@ -111,7 +111,6 @@ export function AudioControls(props: AudioControlsProps) {
 
     const handleFadeIn = useCallback(() => {
         if (fading || current.playing || current.volume <= 0) return;
-        console.log("Started fading", props.playlist);
         setFading(true);
         const audio = audioRef.current!;
         audio.volume = 0;
@@ -261,7 +260,6 @@ export function AudioControls(props: AudioControlsProps) {
                 if (payload.playlist !== props.playlist) return;
                 
                 if (payload.fade === "in") {
-                    console.log("Got fade in message", props.playlist);
                     handleFadeIn();
                 }
                 else if (payload.fade === "out") {

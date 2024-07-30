@@ -260,13 +260,12 @@ export function SceneView() {
         // This will run after entering a new scene, and after the initial track
         // setup is performed, so that all playlists are ready to fade in.
         if (playlistsToFadeIn.length) {
-            console.log("Checking readiness...");
             const startedPlaylists: string[] = [];
             for (const { playlist, track } of playlistsToFadeIn) {
                 const playingPlaylist = playing[playlist];
-                if (playingPlaylist?.playing === undefined || playingPlaylist.playing) return;
-                if (track != "" && playingPlaylist.track.name !== track) return;
-                if (!playingPlaylist.loaded) return;
+                if (playingPlaylist?.playing === undefined || playingPlaylist.playing) continue;
+                if (track != "" && playingPlaylist.track.name !== track) continue;
+                if (!playingPlaylist.loaded) continue;
                 sendMessage(
                     {
                         type: "fade",
@@ -280,10 +279,10 @@ export function SceneView() {
                 );
                 startedPlaylists.push(playlist);
             }
-            console.log("Started", startedPlaylists);
             const newPlaylists = playlistsToFadeIn.filter(({ playlist }) => !startedPlaylists.includes(playlist))
-            setPlaylistsToFadeIn(newPlaylists);
-            console.log("New:", newPlaylists);
+            if (newPlaylists.length < playlistsToFadeIn.length) {
+                setPlaylistsToFadeIn(newPlaylists);
+            }
         }
     }, [playlistsToFadeIn, playing]);
 
