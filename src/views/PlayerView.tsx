@@ -37,6 +37,7 @@ function PlayerAudioIndicator({
     const [ loaded, setLoaded ] = useState(false);
     const [ fading, setFading ] = useState(false);
     const [ fade, setFade ] = useState<FadeObject>();
+    const [ playlistVolume, setPlaylistVolume ] = useState(100);
 
     const setPlaybackTime = (time: number) => {
         setTrackWithDuration(old => old ? { ...old, time } : old);
@@ -185,8 +186,22 @@ function PlayerAudioIndicator({
     return <div key={playlist} className="audio-indicator">
         <audio src={trackWithDuration?.source} ref={audioRef} onCanPlayThrough={() => setLoaded(true)} />
         <div className="audio-indicator-top-row">
-            <p style={{fontWeight: "bold"}}>{ playlist }</p>
-            <FontAwesomeIcon icon={faVolumeHigh} style={{opacity: trackWithDuration?.playing ? 1 : 0}} />
+            <p style={{fontWeight: "bold"}}>{ playlist } </p>
+            <div style={{ display: "flex", flexDirection: "row", alignItems: "center" }}>
+                <FontAwesomeIcon icon={faVolumeHigh} style={{opacity: trackWithDuration?.playing ? 1 : 0, paddingRight: "1rem"}} />
+                <div className="horizontal-volume-slider-container">
+                    <ReactSlider
+                        className="horizontal-volume-slider"
+                        thumbClassName={`volume-slider-thumb`}
+                        trackClassName={`horizontal-volume-slider-track`}
+                        min={0}
+                        max={100}
+                        value={playlistVolume * 100}
+                        onChange={value => setPlaylistVolume(value / 100)}
+                        orientation="horizontal"
+                    />
+                </div>
+            </div>
         </div>
         <div className="progressbar-container">
             {
@@ -211,7 +226,6 @@ export function PlayerView() {
     const { party } = useOBR();
 
     const [ playlists, setPlaylists ] = useState<string[]>([]);
-    // const [ playlistVolumes, setPlaylistVolumes ] = useState<Record<string, number>>({});
     const [ tracks, setTracks ] = useState<Record<string, TrackWithDuration>>({});
     const [ GMIDs, setGMIDs ] = useState<string[]>([]);
     const [ setup, setSetup ] = useState(false);

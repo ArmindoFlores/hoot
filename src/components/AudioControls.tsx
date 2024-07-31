@@ -73,19 +73,19 @@ export function AudioControls(props: AudioControlsProps) {
         setScheduledUpdate(true);
     }
 
-    const setCurrentTrack = (track?: Track) => {
+    const setCurrentTrack = useCallback((track?: Track) => {
         setTrack(track, props.playlist);
         sendTrackUpdates();
-    }
+    }, [props.playlist, setTrack]);
     
-    const setAudioTime = (time: number) => {
+    const setAudioTime = useCallback((time: number) => {
         const audioElement = audioRef.current;
         if (audioElement) {
             audioRef.current.currentTime = time;
             setPlaybackTime(audioElement.currentTime, props.playlist);
             sendTrackUpdates();
         }
-    }
+    }, [props.playlist, setPlaybackTime]);
 
     const nextRepeatMode = () => {
         if (current.repeatMode === "no-repeat") {
@@ -99,7 +99,7 @@ export function AudioControls(props: AudioControlsProps) {
         }
     }
 
-    const changeTrack = (offset: number) => {
+    const changeTrack = useCallback((offset: number) => {
         if (fading) return;
         const playlistTracks = (current.shuffle ? shuffled : tracks).get(props.playlist)!;
         const currentIndex = playlistTracks.findIndex(track => track.name === current.track.name);
@@ -107,7 +107,7 @@ export function AudioControls(props: AudioControlsProps) {
         setCurrentTrack(playlistTracks[nextIndex]);
         setAudioTime(0);
         sendTrackUpdates();
-    }
+    }, [current.shuffle, current.track?.name, fading, props.playlist, setAudioTime, setCurrentTrack, shuffled, tracks]);
 
     const handleFadeIn = useCallback(() => {
         const audio = audioRef.current;
@@ -133,7 +133,7 @@ export function AudioControls(props: AudioControlsProps) {
                 setFading(false);
             }
         }, interval);
-    }, [fading, current.playing, current.volume, fadeTime]);
+    }, [fading, current.playing, current.volume, fadeTime, sendMessage, setIsPlaying, volume, props.playlist]);
 
     const handleFadeOut = useCallback(() => {
         const audio = audioRef.current;
@@ -159,7 +159,7 @@ export function AudioControls(props: AudioControlsProps) {
                 setFading(false);
             }
         }, interval);
-    }, [fading, current.playing, current.volume, fadeTime]);
+    }, [fading, current.playing, current.volume, fadeTime, props.playlist, sendMessage, setIsPlaying, volume]);
 
     useEffect(() => {
         if (scheduledUpdate) {
@@ -176,7 +176,7 @@ export function AudioControls(props: AudioControlsProps) {
                 }
             });
         }
-    }, [scheduledUpdate, throttledSend, current]);
+    }, [scheduledUpdate, throttledSend, current, props.playlist]);
 
     useEffect(() => {
         const newShuffled = new Map<string, Track[]>();
@@ -215,12 +215,12 @@ export function AudioControls(props: AudioControlsProps) {
                 audioElement.removeEventListener("ended", handleEnded);
             };
         }
-    }, [current.repeatMode, current.shuffle, current.track?.name, tracks]);
+    }, [changeTrack, current.repeatMode, current.shuffle, current.track?.name, props.playlist, setAudioTime, setIsPlaying, setPlaybackTime, tracks]);
 
     useEffect(() => {
         setLoaded(false, props.playlist);
         setTrackLoaded(false);
-    }, [current.track?.name]);
+    }, [current.track?.name, props.playlist, setLoaded]);
 
     useEffect(() => {
         const audioElement = audioRef.current;
@@ -267,7 +267,7 @@ export function AudioControls(props: AudioControlsProps) {
                 }
             }
         });
-    }, [fading, current.playing, current.volume, fadeTime]);
+    }, [fading, current.playing, current.volume, fadeTime, registerMessageHandler, props.playlist, handleFadeIn, handleFadeOut]);
     
     return <div className="track-player-container">
         <audio src={current.track?.source} ref={audioRef} onCanPlayThrough={() => { setTrackLoaded(true); setLoaded(true, props.playlist); }} />
