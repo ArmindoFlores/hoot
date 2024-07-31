@@ -5,7 +5,7 @@
     "author": "Armindo Flores",
     "icon": "/icon.svg",
     "homepage_url": "https://github.com/ArmindoFlores/hoot",
-    "description": "Hoot adds a music player to Owlbear Rodeo.",
+    "description": "Hoot adds a music player to Owlbear Rodeo. You can add your own tracks, control playback with fade ins/outs, and even set up autoplaying when joining scenes.",
     "action": {
       "title": "Hoot",
       "icon": "/icon.svg",
