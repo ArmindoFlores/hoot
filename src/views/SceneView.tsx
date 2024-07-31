@@ -156,6 +156,13 @@ export function SceneView() {
 
     const [ autoplay, setAutoplay ] = useState<AutoplayList>([]);
     const [ playlistsToFadeIn, setPlaylistsToFadeIn ] = useState<{ playlist: string, track: string }[]>([]);
+    const [ triggerAutoplay, setTriggerAutoplay ] = useState(false);
+    const [ hasAutoplayed, setHasAutoplayed ] = useState(false);
+
+    const disableAutoplay = () => {
+        setTriggerAutoplay(false);
+        setHasAutoplayed(true);
+    }
 
     const addNewPlaylist = () => {
         setAutoplay([
@@ -185,15 +192,28 @@ export function SceneView() {
         const autoplay = sceneMetadata[`${APP_KEY}/autoplay`] as (AutoplayList|undefined);
         setAutoplay(autoplay ?? []);
         setPlaylistsToFadeIn([]);
+        if (autoplay && autoplay.length) {
+            console.log("Triggered autoplay");
+            setTriggerAutoplay(true);
+        }
     }, [sceneMetadata]);
 
     useEffect(() => {
-        const autoplay = sceneMetadata[`${APP_KEY}/autoplay`] as (AutoplayList|undefined);
-        setAutoplay(autoplay ?? []);
+        if (!sceneReady) {
+            console.log("Cleared trigger");
+            disableAutoplay();
+        }
+        else {
+            console.log("Loaded new scene, enabled autoplay");
+            setHasAutoplayed(false);
+        }
+    }, [sceneReady]);
 
+    useEffect(() => {
         // Start autoplay if it is setup
-        if (sceneReady && autoplay != undefined) {
+        if (sceneReady && autoplay != undefined && triggerAutoplay && !hasAutoplayed) {
             const playlistsToFadeIn: { playlist: string, track: string }[] = [];
+            disableAutoplay();
 
             for (const autoplayPlaylist of autoplay) {
                 const trackList = tracks.get(autoplayPlaylist.playlist);
@@ -235,6 +255,7 @@ export function SceneView() {
 
             //  After this render, fade in the missing playlists 
             setPlaylistsToFadeIn(playlistsToFadeIn);
+            console.log("Playlists to fade in:", playlistsToFadeIn);
 
             if (stopOtherTracks) {
                 for (const playlist of playlists) {
@@ -258,18 +279,25 @@ export function SceneView() {
                 }
             }
         }
-    }, [sceneReady]);
+    }, [sceneReady, playing, playlists, sceneMetadata, sendMessage, setPlaylist, stopOtherTracks, tracks, triggerAutoplay, autoplay, hasAutoplayed]);
 
     useEffect(() => {
         // This will run after entering a new scene, and after the initial track
         // setup is performed, so that all playlists are ready to fade in.
         if (playlistsToFadeIn.length) {
+            console.log("Trying to fade in:", playlistsToFadeIn);
             const startedPlaylists: string[] = [];
             for (const { playlist, track } of playlistsToFadeIn) {
                 const playingPlaylist = playing[playlist];
-                if (playingPlaylist?.playing === undefined || playingPlaylist.playing) continue;
-                if (track != "" && playingPlaylist.track.name !== track) continue;
-                if (!playingPlaylist.loaded) continue;
+                if (
+                    playingPlaylist?.playing === undefined ||
+                    playingPlaylist.playing ||
+                    (track != "" && playingPlaylist.track.name !== track) ||
+                    !playingPlaylist.loaded
+                ) {
+                    console.log(`Couldn't load ${playlist}[${track}]:`, playingPlaylist);
+                    continue;
+                }
                 sendMessage(
                     {
                         type: "fade",
