@@ -94,11 +94,11 @@ export function GMView() {
                 addTrack(track);
             }
         });
-    }, [playing, addTrack]);
+    }, [playing, addTrack, registerMessageHandler, sendMessage]);
 
     useEffect(() => {
-        sendMessage({ type: "playlists", payload: Object.keys(playing) });
-    }, [memoizedPlayingPlaylists]);
+        sendMessage({ type: "playlists", payload: memoizedPlayingPlaylists });
+    }, [memoizedPlayingPlaylists, sendMessage]);
     
     return <>
         <Navbar selectedScreen={selectedScreen} setSelectedScreen={setSelectedScreen} />

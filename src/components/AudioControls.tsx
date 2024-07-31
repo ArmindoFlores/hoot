@@ -59,7 +59,7 @@ export function AudioControls(props: AudioControlsProps) {
     const { tracks } = useTracks();
     const { sendMessage, registerMessageHandler } = useOBRMessaging();
 
-    const current = useMemo(() => playing[props.playlist], [playing]);
+    const current = useMemo(() => playing[props.playlist], [playing, props.playlist]);
     const audioRef = useRef<HTMLAudioElement>(null);
     
     const [ shuffled, setShuffled ] = useState<typeof tracks>(new Map());
@@ -110,9 +110,9 @@ export function AudioControls(props: AudioControlsProps) {
     }
 
     const handleFadeIn = useCallback(() => {
-        if (fading || current.playing || current.volume <= 0) return;
+        const audio = audioRef.current;
+        if (fading || current.playing || current.volume <= 0 || audio == undefined) return;
         setFading(true);
-        const audio = audioRef.current!;
         audio.volume = 0;
         audio.play();
         sendMessage({ type: "fade", payload: { playlist: props.playlist, fade: "in", duration: fadeTime }});
@@ -136,10 +136,10 @@ export function AudioControls(props: AudioControlsProps) {
     }, [fading, current.playing, current.volume, fadeTime]);
 
     const handleFadeOut = useCallback(() => {
-        if (fading || !current.playing || current.volume <= 0) return;
+        const audio = audioRef.current;
+        if (fading || !current.playing || current.volume <= 0 || audio == undefined) return;
         
         setFading(true);
-        const audio = audioRef.current!;
         sendMessage({ type: "fade", payload: { playlist: props.playlist, fade: "out", duration: fadeTime } });
 
         const initialVolume = current.volume;
@@ -220,37 +220,37 @@ export function AudioControls(props: AudioControlsProps) {
     useEffect(() => {
         setLoaded(false, props.playlist);
         setTrackLoaded(false);
-    }, [current.track.name]);
+    }, [current.track?.name]);
 
     useEffect(() => {
-        if (!fading) {
-            audioRef.current!.volume = current.volume * volume;
+        const audioElement = audioRef.current;
+        if (!fading && audioElement != undefined && current.volume) {
+            audioElement.volume = current.volume * volume;
             sendTrackUpdates();
         }
     }, [current.volume, volume, fading])
 
     useEffect(() => {
-        if (loaded && !fading) {
+        const audioElement = audioRef.current;
+        if (loaded && !fading && audioElement != undefined) {
             if (current.playing) {
-                audioRef.current!.play();
+                audioElement.play();
             }
             else {
-                audioRef.current!.pause();
+                audioElement.pause();
             }
             sendTrackUpdates();
         }
     }, [current.playing, loaded, fading]);
 
     useEffect(() => {
-        if (loaded) {
-            console.log("Loaded", props.playlist);
-            setDuration(audioRef.current!.duration, props.playlist);
+        const audioElement = audioRef.current;
+        if (loaded && audioElement) {
+            setDuration(audioElement.duration, props.playlist);
             setPlaybackTime(0, props.playlist);
             sendTrackUpdates();
         }
-    }, [loaded]);
-
-    useEffect(() => console.log("Mounted", props.playlist), []);
+    }, [loaded, props.playlist, setDuration, setPlaybackTime]);
 
     useEffect(() => {
         return registerMessageHandler(message => {
@@ -270,7 +270,7 @@ export function AudioControls(props: AudioControlsProps) {
     }, [fading, current.playing, current.volume, fadeTime]);
     
     return <div className="track-player-container">
-        <audio src={current.track.source} ref={audioRef} onCanPlayThrough={() => { setTrackLoaded(true); setLoaded(true, props.playlist); }} />
+        <audio src={current.track?.source} ref={audioRef} onCanPlayThrough={() => { setTrackLoaded(true); setLoaded(true, props.playlist); }} />
         <div className="volume-widget">
             <ReactSlider
                 className="volume-slider"
@@ -297,7 +297,7 @@ export function AudioControls(props: AudioControlsProps) {
             />
         </div>
         <div className="track-control-widgets">
-            <p className="track-control-display"><span style={{fontWeight: "bold"}}>{ props.playlist }:</span> { current.track.name }</p>
+            <p className="track-control-display"><span style={{fontWeight: "bold"}}>{ props.playlist }:</span> { current.track?.name }</p>
             <div className="track-progressbar-container">
                 <p className="text-small unselectable">{formatTime(current.time)}</p>
                 <div style={{padding: "0 0.5rem", flex: 1}}>

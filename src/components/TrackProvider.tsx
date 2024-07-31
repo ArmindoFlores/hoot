@@ -8,7 +8,7 @@ export interface Track {
     name: string;
     source: string;
     playlists: string[];
-};
+}
 
 interface TrackContextType {
     tracks: Map<string, Track[]>;
@@ -16,7 +16,7 @@ interface TrackContextType {
     addTrack: (track: Track) => void;
     removeTrack: (track: string, playlist: string) => void;
     importTracks: (tracks: Track[]) => void;
-};
+}
 
 function trackArrayToMap(trackList: Track[]) {
     const tracks = new Map<string, Track[]>();

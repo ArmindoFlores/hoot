@@ -5,6 +5,7 @@ import { Track } from "./TrackProvider";
 export type RepeatMode = "no-repeat" | "repeat-all" | "repeat-self";
 
 function omitKey<T extends object, K extends keyof T>(obj: T, key: K): Omit<T, K> {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { [key]: _, ...rest } = obj;
     return rest;
 }
@@ -18,7 +19,7 @@ interface PlaylistInfo {
     loaded: boolean;
     repeatMode: RepeatMode;
     volume: number;
-};
+}
 
 interface AudioPlayerContextType {
     volume: number;
@@ -34,7 +35,7 @@ interface AudioPlayerContextType {
     setIsPlaying: (playing: boolean, playlist: string) => void;
     setRepeatMode: (repeatMode: RepeatMode, playlist: string) => void;
     setPlaylist: (playlist: string, info: PlaylistInfo) => void;
-};
+}
 
 const AudioPlayerContext = createContext<AudioPlayerContextType>({ 
     volume: 0.5, 
@@ -68,7 +69,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
                 }
             }));
         }
-    }, [playing]);
+    }, []);
 
     const setTrack = useCallback((track: Track | undefined, playlist: string) => {
         setPlaying(oldPlaying => {
@@ -93,14 +94,14 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
                 }
             };
         });
-    }, [playing]);
+    }, []);
 
     const setPlaylist = useCallback((playlist: string, info: PlaylistInfo) => {
         setPlaying(oldPlaying => ({
             ...oldPlaying,
             [playlist]: info
         }));
-    }, [playing]);
+    }, []);
 
     const setPlaybackTime = useCallback((time: number, playlist: string) => {
         setPlaying(oldPlaying => ({
@@ -110,7 +111,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
                 time
             }
         }));
-    }, [playing]);
+    }, []);
 
     const setDuration = useCallback((duration: number, playlist: string) => {
         setPlaying(oldPlaying => ({
@@ -120,7 +121,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
                 duration
             }
         }));
-    }, [playing]);
+    }, []);
 
     const setShuffle = useCallback((shuffle: boolean, playlist: string) => {
         setPlaying(oldPlaying => ({
@@ -130,7 +131,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
                 shuffle
             }
         }));
-    }, [playing]);
+    }, []);
 
     const setLoaded = useCallback((loaded: boolean, playlist: string) => {
         setPlaying(oldPlaying => ({
@@ -140,7 +141,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
                 loaded
             }
         }));
-    }, [playing]);
+    }, []);
 
     const setIsPlaying = useCallback((playing: boolean, playlist: string) => {
         setPlaying(oldPlaying => ({
@@ -150,7 +151,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
                 playing
             }
         }));
-    }, [playing]);
+    }, []);
 
     const setRepeatMode = useCallback((repeatMode: RepeatMode, playlist: string) => {
         setPlaying(oldPlaying => ({
@@ -160,7 +161,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
                 repeatMode
             }
         }));
-    }, [playing]);
+    }, []);
 
     return <AudioPlayerContext.Provider 
         value={{

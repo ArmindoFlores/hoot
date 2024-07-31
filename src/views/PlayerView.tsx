@@ -1,6 +1,6 @@
 import { faVolumeHigh, faVolumeLow, faVolumeMute, faVolumeOff } from "@fortawesome/free-solid-svg-icons";
 import { fadeInVolume, fadeOutVolume } from "../utils";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useOBR, useOBRMessaging } from "../react-obr/providers";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -46,7 +46,7 @@ function PlayerAudioIndicator({
         setTrackWithDuration(old => old ? { ...old, playing } : old);
     }
 
-    const playTrack = () => {
+    const playTrack = useCallback(() => {
         audioRef.current!.play().catch(() => {
             OBR.notification.show(
                 "Autoplay is disabled. Please press the 'Reset Playback' button in the Hoot page.", 
@@ -54,13 +54,13 @@ function PlayerAudioIndicator({
             );
             autoplayError();
         });
-    }
+    }, [autoplayError]);
 
     useEffect(() => {
-        if (loaded && audioRef.current && trackWithDuration) {
+        if (loaded && audioRef.current && trackWithDuration && !fading) {
             audioRef.current.volume = globalVolume * trackWithDuration.volume;
         }
-    }, [globalVolume, trackWithDuration?.volume, loaded]);
+    }, [globalVolume, trackWithDuration, loaded, fading]);
 
     useEffect(() => {
         if (audioRef.current && track) {
@@ -93,7 +93,7 @@ function PlayerAudioIndicator({
                 audioRef.current!.pause();
             }
         }
-    }, [loaded, trackWithDuration, triggerPlayback, fading]);
+    }, [loaded, trackWithDuration, triggerPlayback, fading, playTrack]);
 
     useEffect(() => {
         if (loaded) {
@@ -123,13 +123,14 @@ function PlayerAudioIndicator({
                 setFade(fadeObject);
             }
         });
-    }, [playlist]);
+    }, [playlist, registerMessageHandler]);
 
     useEffect(() => {
         if (fade == undefined || fade.fade != "in") return;
         if (fading || (trackWithDuration?.volume ?? 0) <= 0) return;
         
         setFading(true);
+        setFade(undefined);
         const audio = audioRef.current!;
         audio.volume = 0;
         playTrack();
@@ -151,13 +152,14 @@ function PlayerAudioIndicator({
                 setFade(undefined);
             }
         }, interval);
-    }, [fade]);
+    }, [fade, fading, globalVolume, playTrack, trackWithDuration]);
 
     useEffect(() => {
         if (fade == undefined || fade.fade != "out") return;
         if (fading || (trackWithDuration?.volume ?? 0) <= 0) return;
         
         setFading(true);
+        setFade(undefined);
         const audio = audioRef.current!;
 
         const initialVolume = trackWithDuration!.volume;
@@ -178,7 +180,7 @@ function PlayerAudioIndicator({
                 setFade(undefined);
             }
         }, interval);
-    }, [fade]);
+    }, [fade, fading, globalVolume, trackWithDuration]);
 
     return <div key={playlist} className="audio-indicator">
         <audio src={trackWithDuration?.source} ref={audioRef} onCanPlayThrough={() => setLoaded(true)} />
@@ -272,7 +274,7 @@ export function PlayerView() {
                 console.error(`Received invalid message of type '${messageContent.type}':`, messageContent.payload);
             }
         });
-    }, [GMIDs]);
+    }, [GMIDs, playlists, sendMessage, registerMessageHandler]);
 
     useEffect(() => {
         if (!setup && party && party.length >= 1) {
@@ -285,7 +287,7 @@ export function PlayerView() {
             setSetup(true);
             setGMIDs(GMIDs);
         }
-    }, [party, setup]);
+    }, [party, setup, sendMessage]);
 
     return <div className="player-view">
         <div className="player-view-title">
