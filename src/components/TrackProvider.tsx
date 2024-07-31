@@ -101,7 +101,7 @@ export function TrackProvider({ children }: { children: React.ReactNode }) {
         localforage.setItem(STORAGE_KEYS.TRACKS, trackMapToArray(tracks)).then(
             () => OBR.notification.show("Deleted track", "SUCCESS")
         );
-    }, [setTracks, setPlaylists]);
+    }, [tracks, setTracks, setPlaylists]);
 
     const importTracks = useCallback((trackList: Track[]) => {
         try {

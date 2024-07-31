@@ -2,7 +2,7 @@ import "react-toggle/style.css";
 
 import { RepeatMode, useAudioPlayer } from "../components/AudioPlayerProvider";
 import { faAdd, faClose, faRepeat, faSave } from "@fortawesome/free-solid-svg-icons";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useOBR, useOBRMessaging } from "../react-obr/providers";
 
 import { APP_KEY } from "../config";
@@ -26,6 +26,125 @@ type AutoplayList = {
 interface AutoplayPlaylistItemProps {
     autoplayEntry: AutoplayList[number];
     setAutoplayEntry: (entry: AutoplayList[number]) => void;
+    setAutoplay: React.Dispatch<React.SetStateAction<AutoplayList>>;
+}
+
+function AutoplayPlaylistItem({ autoplayEntry, setAutoplayEntry, setAutoplay }: AutoplayPlaylistItemProps) {
+    const { tracks, playlists } = useTracks();
+    const { setSceneMetadata } = useOBR();
+
+    const [ playlist, setPlaylist ] = useState(autoplayEntry.playlist);
+    const [ track, setTrack ] = useState(autoplayEntry.track);
+    const [ shuffle, setShuffle ] = useState(autoplayEntry.shuffle);
+    const [ fadeIn, setFadeIn ] = useState(autoplayEntry.fadeIn);
+    const [ repeatMode, setRepeatMode ] = useState(autoplayEntry.repeatMode);
+    const [ volume, setVolume ] = useState(autoplayEntry.volume);
+
+    const nextRepeatMode = () => {
+        if (repeatMode === "no-repeat") {
+            setRepeatMode("repeat-all");
+        }
+        else if (repeatMode === "repeat-all") {
+            setRepeatMode("repeat-self");
+        }
+        else {
+            setRepeatMode("no-repeat");
+        }
+    }
+
+    const handleClose = () => {
+        setAutoplay(old => {
+            const arr = old.filter(item => item != autoplayEntry)
+            setSceneMetadata({
+                [`${APP_KEY}/autoplay`]: arr.length > 0 ? arr : undefined
+            });
+            return arr;
+        });
+    }
+
+    const handleSave = () => {
+        setAutoplayEntry({ playlist, track, shuffle, fadeIn, repeatMode, volume });
+    }
+
+    return <div className="autoplay-container">
+        <div className="autoplay-row">
+            <label>Playlist name</label>
+            <input
+                className={`small-input ${playlists.includes(playlist) ? "" : "invalid-value"}`}
+                value={playlist}
+                placeholder="playlist name"
+                onChange={(event) => setPlaylist(event.target.value)}
+            />
+        </div>
+        <div className="autoplay-row">
+            <label>Track name</label>
+            <input
+                className={`small-input ${
+                    (track == "" || tracks.get(playlist)?.map?.(track => track.name)?.includes?.(track))
+                    ? "" : "invalid-value"
+                }`}
+                value={track}
+                placeholder="track name"
+                onChange={(event) => setTrack(event.target.value)}
+            />
+        </div>
+        <div className="autoplay-row">
+            <div className="autoplay-subrow">
+                <label>Shuffle</label>
+                <div style={{paddingLeft: "0.25rem", display: "flex"}}>
+                    <Toggle checked={shuffle} onChange={(value) => setShuffle(value.target.checked)} type="checkbox" />
+                </div>
+            </div>
+            <div className="autoplay-subrow">
+                <label>Fade in</label>
+                <div style={{paddingLeft: "0.25rem", display: "flex"}}>
+                    <Toggle checked={fadeIn} onChange={(value) => setFadeIn(value.target.checked)} type="checkbox" />
+                </div>
+            </div>
+        </div>
+        <div className="autoplay-row">
+            <div className="autoplay-subrow">
+                <label style={{paddingRight: "0.5rem"}}>Repeat mode</label>
+                <div 
+                    className={`repeat-button clickable ${repeatMode !== "no-repeat" ? "highlighted" : ""}`}
+                    onClick={nextRepeatMode}
+                >
+                    {
+                        repeatMode === "repeat-self" ? 
+                        <img src={RepeatSelf} style={{width: "1rem"}} className="unselectable" />
+                        : <FontAwesomeIcon icon={faRepeat} />
+                    }
+                </div>
+            </div>
+            <div className="autoplay-subrow">
+                <label style={{paddingRight: "0.5rem"}}>Volume</label>
+                <div className="horizontal-volume-slider-container">
+                    <ReactSlider
+                        className="horizontal-volume-slider"
+                        thumbClassName={`volume-slider-thumb`}
+                        trackClassName={`horizontal-volume-slider-track`}
+                        min={0}
+                        max={100}
+                        value={volume * 100}
+                        onChange={value => setVolume(value / 100)}
+                        orientation="horizontal"
+                    />
+                </div>
+            </div>
+        </div>
+        <div 
+            className="remove-button-container clickable"
+            onClick={handleClose}
+        >
+            <FontAwesomeIcon icon={faClose} />
+        </div>
+        <div 
+            className="save-button-container clickable"
+            onClick={handleSave}
+        >
+            <FontAwesomeIcon icon={faSave} />
+        </div>
+    </div>;
 }
 
 export function SceneView() {
@@ -37,121 +156,6 @@ export function SceneView() {
 
     const [ autoplay, setAutoplay ] = useState<AutoplayList>([]);
     const [ playlistsToFadeIn, setPlaylistsToFadeIn ] = useState<{ playlist: string, track: string }[]>([]);
-
-    const AutoplayPlaylistItem = useCallback(({ autoplayEntry, setAutoplayEntry }: AutoplayPlaylistItemProps) => {
-        const [ playlist, setPlaylist ] = useState(autoplayEntry.playlist);
-        const [ track, setTrack ] = useState(autoplayEntry.track);
-        const [ shuffle, setShuffle ] = useState(autoplayEntry.shuffle);
-        const [ fadeIn, setFadeIn ] = useState(autoplayEntry.fadeIn);
-        const [ repeatMode, setRepeatMode ] = useState(autoplayEntry.repeatMode);
-        const [ volume, setVolume ] = useState(autoplayEntry.volume);
-    
-        const nextRepeatMode = () => {
-            if (repeatMode === "no-repeat") {
-                setRepeatMode("repeat-all");
-            }
-            else if (repeatMode === "repeat-all") {
-                setRepeatMode("repeat-self");
-            }
-            else {
-                setRepeatMode("no-repeat");
-            }
-        }
-
-        const handleClose = () => {
-            setAutoplay(old => {
-                const arr = old.filter(item => item != autoplayEntry)
-                setSceneMetadata({
-                    [`${APP_KEY}/autoplay`]: arr.length > 0 ? arr : undefined
-                });
-                return arr;
-            });
-        }
-
-        const handleSave = () => {
-            setAutoplayEntry({ playlist, track, shuffle, fadeIn, repeatMode, volume });
-        }
-    
-        return <div className="autoplay-container">
-            <div className="autoplay-row">
-                <label>Playlist name</label>
-                <input
-                    className={`small-input ${playlists.includes(playlist) ? "" : "invalid-value"}`}
-                    value={playlist}
-                    placeholder="playlist name"
-                    onChange={(event) => setPlaylist(event.target.value)}
-                />
-            </div>
-            <div className="autoplay-row">
-                <label>Track name</label>
-                <input
-                    className={`small-input ${
-                        (track == "" || tracks.get(playlist)?.map?.(track => track.name)?.includes?.(track))
-                        ? "" : "invalid-value"
-                    }`}
-                    value={track}
-                    placeholder="track name"
-                    onChange={(event) => setTrack(event.target.value)}
-                />
-            </div>
-            <div className="autoplay-row">
-                <div className="autoplay-subrow">
-                    <label>Shuffle</label>
-                    <div style={{paddingLeft: "0.25rem", display: "flex"}}>
-                        <Toggle checked={shuffle} onChange={(value) => setShuffle(value.target.checked)} type="checkbox" />
-                    </div>
-                </div>
-                <div className="autoplay-subrow">
-                    <label>Fade in</label>
-                    <div style={{paddingLeft: "0.25rem", display: "flex"}}>
-                        <Toggle checked={fadeIn} onChange={(value) => setFadeIn(value.target.checked)} type="checkbox" />
-                    </div>
-                </div>
-            </div>
-            <div className="autoplay-row">
-                <div className="autoplay-subrow">
-                    <label style={{paddingRight: "0.5rem"}}>Repeat mode</label>
-                    <div 
-                        className={`repeat-button clickable ${repeatMode !== "no-repeat" ? "highlighted" : ""}`}
-                        onClick={nextRepeatMode}
-                    >
-                        {
-                            repeatMode === "repeat-self" ? 
-                            <img src={RepeatSelf} style={{width: "1rem"}} className="unselectable" />
-                            : <FontAwesomeIcon icon={faRepeat} />
-                        }
-                    </div>
-                </div>
-                <div className="autoplay-subrow">
-                    <label style={{paddingRight: "0.5rem"}}>Volume</label>
-                    <div className="horizontal-volume-slider-container">
-                        <ReactSlider
-                            className="horizontal-volume-slider"
-                            thumbClassName={`volume-slider-thumb`}
-                            trackClassName={`horizontal-volume-slider-track`}
-                            min={0}
-                            max={100}
-                            value={volume * 100}
-                            onChange={value => setVolume(value / 100)}
-                            orientation="horizontal"
-                        />
-                    </div>
-                </div>
-            </div>
-            <div 
-                className="remove-button-container clickable"
-                onClick={handleClose}
-            >
-                <FontAwesomeIcon icon={faClose} />
-            </div>
-            <div 
-                className="save-button-container clickable"
-                onClick={handleSave}
-            >
-                <FontAwesomeIcon icon={faSave} />
-            </div>
-        </div>;
-    }, [setAutoplay, playlists, setSceneMetadata]);
 
     const addNewPlaylist = () => {
         setAutoplay([
@@ -284,7 +288,7 @@ export function SceneView() {
                 setPlaylistsToFadeIn(newPlaylists);
             }
         }
-    }, [playlistsToFadeIn, playing]);
+    }, [playlistsToFadeIn, playing, sendMessage]);
 
     return <div className="generic-view">
         <div className="generic-view-inner">
@@ -304,6 +308,7 @@ export function SceneView() {
                             key={index}
                             autoplayEntry={autoplayEntry}
                             setAutoplayEntry={(entry: AutoplayList[number]) => setAutoplayEntry(entry, index)}
+                            setAutoplay={setAutoplay}
                         />
                     ))
                 }
