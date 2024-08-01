@@ -8,7 +8,7 @@ interface SettingsContextType {
     stopOtherTracks: boolean;
     setStopOtherTracks: (stop: boolean) => void;
     setFadeTime: (fadeTime: number) => void;
-};
+}
 
 const SettingsContext = createContext<SettingsContextType>({
     fadeTime: 4500, 

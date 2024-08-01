@@ -8,6 +8,7 @@ import { MessageContent } from "../types/messages";
 import OBR from "@owlbear-rodeo/sdk";
 import ReactSlider from "react-slider";
 import { SimpleTrack } from "../types/tracks";
+import { PlayerSettingsProvider, usePlayerSettings } from "../components/PlayerSettingsProvider";
 
 type TrackWithDuration = SimpleTrack & { duration?: number };
 interface PlayerAudioIndicatorProps {
@@ -31,13 +32,13 @@ function PlayerAudioIndicator({
     triggerPlayback
 }: PlayerAudioIndicatorProps) {
     const { registerMessageHandler } = useOBRMessaging();
+    const { playlistVolume, setPlaylistVolume } = usePlayerSettings();
     const audioRef = useRef<HTMLAudioElement>(null);
-
+    
     const [ trackWithDuration, setTrackWithDuration ] = useState<TrackWithDuration|undefined>(track);
     const [ loaded, setLoaded ] = useState(false);
     const [ fading, setFading ] = useState(false);
     const [ fade, setFade ] = useState<FadeObject>();
-    const [ playlistVolume, setPlaylistVolume ] = useState(100);
 
     const setPlaybackTime = (time: number) => {
         setTrackWithDuration(old => old ? { ...old, time } : old);
@@ -48,20 +49,31 @@ function PlayerAudioIndicator({
     }
 
     const playTrack = useCallback(() => {
-        audioRef.current!.play().catch(() => {
-            OBR.notification.show(
-                "Autoplay is disabled. Please press the 'Reset Playback' button in the Hoot page.", 
-                "WARNING"
-            );
-            autoplayError();
+        audioRef.current!.play().catch((reason: DOMException) => {
+            console.error(reason, reason.name);
+            if (reason.name === "NotAllowedError") {
+                // Autoplay issue
+                OBR.notification.show(
+                    "Autoplay is disabled. Please press the 'Reset Playback' button in the Hoot page.", 
+                    "WARNING"
+                );
+                autoplayError();
+            }
+            else if (reason.name === "AbortError") {
+                // This is not really an error for us
+            }
+            else {
+                // Some other issue
+                OBR.notification.show(`Error starting track '${trackWithDuration?.name}': ${reason.message}`, "ERROR");
+            }
         });
-    }, [autoplayError]);
+    }, [autoplayError, trackWithDuration?.name]);
 
     useEffect(() => {
         if (loaded && audioRef.current && trackWithDuration && !fading) {
-            audioRef.current.volume = globalVolume * trackWithDuration.volume;
+            audioRef.current.volume = globalVolume * trackWithDuration.volume * playlistVolume;
         }
-    }, [globalVolume, trackWithDuration, loaded, fading]);
+    }, [globalVolume, trackWithDuration, loaded, fading, playlistVolume]);
 
     useEffect(() => {
         if (audioRef.current && track) {
@@ -322,14 +334,15 @@ export function PlayerView() {
             }
             {
                 playlists.map(playlist => (
-                    <PlayerAudioIndicator
-                        key={playlist}
-                        playlist={playlist}
-                        track={tracks[playlist]}
-                        globalVolume={volume}
-                        triggerPlayback={triggerPlayback}
-                        autoplayError={() => setAutoplayErrorOccurred(true)} 
-                    />
+                    <PlayerSettingsProvider key={playlist} playlist={playlist}>
+                        <PlayerAudioIndicator
+                            playlist={playlist}
+                            track={tracks[playlist]}
+                            globalVolume={volume}
+                            triggerPlayback={triggerPlayback}
+                            autoplayError={() => setAutoplayErrorOccurred(true)} 
+                        />
+                    </PlayerSettingsProvider>
                 ))
             }
         </div>

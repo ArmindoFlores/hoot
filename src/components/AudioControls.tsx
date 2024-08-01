@@ -55,6 +55,9 @@ async function tryPlay(audio: HTMLAudioElement, trackName: string) {
             // Autoplay issue
             OBR.notification.show(`Could not start the track '${trackName}' because autoplay is disabled`, "WARNING");
         }
+        else if (domError.name === "AbortError") {
+            // This is not really an error for us
+        }
         else {
             // Some other issue
             OBR.notification.show(`Error starting track '${trackName}': ${domError.message}`, "ERROR");
@@ -104,7 +107,7 @@ export function AudioControls(props: AudioControlsProps) {
     const setAudioTime = useCallback((time: number) => {
         const audioElement = audioRef.current;
         if (audioElement) {
-            audioElement.fastSeek(time);
+            audioElement.currentTime = time;
             setPlaybackTime(audioElement.currentTime, props.playlist);
             sendTrackUpdates();
         }
@@ -372,7 +375,7 @@ export function AudioControls(props: AudioControlsProps) {
                     />
                     <FontAwesomeIcon
                         icon={faBackward}
-                        className={`playback-control ${(fading || !loaded) ? "disabled" : "clickable"}`}
+                        className={`playback-control ${fading ? "disabled" : "clickable"}`}
                         onClick={() => changeTrack(-1)}
                     />
                     <FontAwesomeIcon 
@@ -382,7 +385,7 @@ export function AudioControls(props: AudioControlsProps) {
                     />
                     <FontAwesomeIcon
                         icon={faForward}
-                        className={`playback-control ${(fading || !loaded) ? "disabled" : "clickable"}`}
+                        className={`playback-control ${fading ? "disabled" : "clickable"}`}
                         onClick={() => changeTrack(+1)}
                     />
                     <img
