@@ -1,5 +1,5 @@
 import { Track, useTracks } from "./TrackProvider";
-import { faBackward, faClose, faForward, faPause, faPlay, faRepeat, faShuffle, faVolumeHigh, faVolumeLow, faVolumeOff } from "@fortawesome/free-solid-svg-icons";
+import { faBackward, faCircleExclamation, faClose, faForward, faPause, faPlay, faRepeat, faShuffle, faVolumeHigh, faVolumeLow, faVolumeOff } from "@fortawesome/free-solid-svg-icons";
 import { fadeInVolume, fadeOutVolume } from "../utils";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -13,6 +13,8 @@ import { useAudioPlayer } from "./AudioPlayerProvider";
 import { useOBRMessaging } from "../react-obr/providers";
 import { useSettings } from "./SettingsProvider";
 import { useThrottled } from "../hooks";
+import OBR from "@owlbear-rodeo/sdk";
+import { Oval } from "react-loader-spinner";
 
 export interface AudioControlsProps {
     playlist: string;
@@ -42,6 +44,25 @@ function shuffleArray<T>(array: T[]): T[] {
     return array; 
 }
 
+async function tryPlay(audio: HTMLAudioElement, trackName: string) {
+    try {
+        await audio.play();
+        return true;
+    }
+    catch (error) {
+        const domError = error as DOMException;
+        if (domError.name === "NotAllowedError") {
+            // Autoplay issue
+            OBR.notification.show(`Could not start the track '${trackName}' because autoplay is disabled`, "WARNING");
+        }
+        else {
+            // Some other issue
+            OBR.notification.show(`Error starting track '${trackName}': ${domError.message}`, "ERROR");
+        }
+    }
+    return false;
+}
+
 export function AudioControls(props: AudioControlsProps) {
     const { 
         volume, 
@@ -66,6 +87,8 @@ export function AudioControls(props: AudioControlsProps) {
     const [ loaded, setTrackLoaded ] = useState(false);
     const [ scheduledUpdate, setScheduledUpdate ] = useState(false);
     const [ fading, setFading ] = useState(false);
+    const [ errored, setErrored] = useState(false);
+    const [ errorMessage, setErrorMessage] = useState("");
 
     const throttledSend = useThrottled(sendMessage, 250, "trailing");
 
@@ -81,7 +104,7 @@ export function AudioControls(props: AudioControlsProps) {
     const setAudioTime = useCallback((time: number) => {
         const audioElement = audioRef.current;
         if (audioElement) {
-            audioRef.current.currentTime = time;
+            audioElement.fastSeek(time);
             setPlaybackTime(audioElement.currentTime, props.playlist);
             sendTrackUpdates();
         }
@@ -109,12 +132,30 @@ export function AudioControls(props: AudioControlsProps) {
         sendTrackUpdates();
     }, [current.shuffle, current.track?.name, fading, props.playlist, setAudioTime, setCurrentTrack, shuffled, tracks]);
 
-    const handleFadeIn = useCallback(() => {
+    const handleAudioError = useCallback(() => {
+        OBR.notification.show(`Error loading track '${current.track.name}': ${audioRef.current?.error?.message}`, "ERROR");
+        setErrored(true);
+        setErrorMessage(`Error loading track (${audioRef.current?.error?.message})`);
+    }, [current.track?.name]);
+
+    const handleAudioLoaded = useCallback(() => {
+        setTrackLoaded(true); 
+        setLoaded(true, props.playlist);
+        setErrored(false);
+    }, [props.playlist, setLoaded]);
+
+    const handleFadeIn = useCallback(async () => {
         const audio = audioRef.current;
         if (fading || current.playing || current.volume <= 0 || audio == undefined) return;
+        
         setFading(true);
+        const playResult = tryPlay(audio, current.track.name);
+        if (!playResult) {
+            setFading(false);
+            return;
+        }
+        
         audio.volume = 0;
-        audio.play();
         sendMessage({ type: "fade", payload: { playlist: props.playlist, fade: "in", duration: fadeTime }});
         setIsPlaying(true, props.playlist);
 
@@ -133,7 +174,7 @@ export function AudioControls(props: AudioControlsProps) {
                 setFading(false);
             }
         }, interval);
-    }, [fading, current.playing, current.volume, fadeTime, sendMessage, setIsPlaying, volume, props.playlist]);
+    }, [fading, current.playing, current.volume, fadeTime, sendMessage, setIsPlaying, volume, props.playlist, current.track?.name]);
 
     const handleFadeOut = useCallback(() => {
         const audio = audioRef.current;
@@ -199,7 +240,7 @@ export function AudioControls(props: AudioControlsProps) {
                 }
                 else if (current.repeatMode === "repeat-self") {
                     setAudioTime(0);
-                    audioElement.play();
+                    tryPlay(audioElement, current.track.name);
                 }
                 else {
                     changeTrack(+1);
@@ -234,14 +275,14 @@ export function AudioControls(props: AudioControlsProps) {
         const audioElement = audioRef.current;
         if (loaded && !fading && audioElement != undefined) {
             if (current.playing) {
-                audioElement.play();
+                tryPlay(audioElement, current.track.name)
             }
             else {
                 audioElement.pause();
             }
             sendTrackUpdates();
         }
-    }, [current.playing, loaded, fading]);
+    }, [current.playing, loaded, fading, current.track?.name]);
 
     useEffect(() => {
         const audioElement = audioRef.current;
@@ -270,7 +311,12 @@ export function AudioControls(props: AudioControlsProps) {
     }, [fading, current.playing, current.volume, fadeTime, registerMessageHandler, props.playlist, handleFadeIn, handleFadeOut]);
     
     return <div className="track-player-container">
-        <audio src={current.track?.source} ref={audioRef} onCanPlayThrough={() => { setTrackLoaded(true); setLoaded(true, props.playlist); }} />
+        <audio
+            src={current.track?.source}
+            ref={audioRef}
+            onError={handleAudioError}
+            onCanPlayThrough={handleAudioLoaded}
+        />
         <div className="volume-widget">
             <ReactSlider
                 className="volume-slider"
@@ -297,7 +343,9 @@ export function AudioControls(props: AudioControlsProps) {
             />
         </div>
         <div className="track-control-widgets">
-            <p className="track-control-display"><span style={{fontWeight: "bold"}}>{ props.playlist }:</span> { current.track?.name }</p>
+            <p className="track-control-display">
+                <span style={{fontWeight: "bold"}}>{ props.playlist }:</span> { current.track?.name }
+            </p>
             <div className="track-progressbar-container">
                 <p className="text-small unselectable">{formatTime(current.time)}</p>
                 <div style={{padding: "0 0.5rem", flex: 1}}>
@@ -310,6 +358,7 @@ export function AudioControls(props: AudioControlsProps) {
                         max={500}
                         value={current.duration ? (current.time / current.duration * 500) : 0}
                         onChange={value => setAudioTime(value / 500 * current.duration!)}
+                        disabled={!loaded}
                     />
                 </div>
                 <p className="text-small unselectable">{formatTime(current.duration ?? 0)}</p>
@@ -318,27 +367,27 @@ export function AudioControls(props: AudioControlsProps) {
                 <div className="track-playback-controls-container">
                     <img 
                         src={FadeIn}
-                        className={`playback-control ${(fading || current.playing) ? "disabled" : "clickable"} unselectable`}
+                        className={`playback-control ${(fading || current.playing || !loaded) ? "disabled" : "clickable"} unselectable`}
                         onClick={handleFadeIn}
                     />
                     <FontAwesomeIcon
                         icon={faBackward}
-                        className={`playback-control ${fading ? "disabled" : "clickable"}`}
+                        className={`playback-control ${(fading || !loaded) ? "disabled" : "clickable"}`}
                         onClick={() => changeTrack(-1)}
                     />
                     <FontAwesomeIcon 
                         icon={current.playing ? faPause : faPlay} 
-                        className={`play-button ${fading ? "disabled" : "clickable"}`}
+                        className={`play-button ${(fading || !loaded) ? "disabled" : "clickable"}`}
                         onClick={fading ? undefined : () => setIsPlaying(!current.playing, props.playlist)}
                     />
                     <FontAwesomeIcon
                         icon={faForward}
-                        className={`playback-control ${fading ? "disabled" : "clickable"}`}
+                        className={`playback-control ${(fading || !loaded) ? "disabled" : "clickable"}`}
                         onClick={() => changeTrack(+1)}
                     />
                     <img
                         src={FadeOut}
-                        className={`playback-control ${(fading || !current.playing) ? "disabled" : "clickable"} unselectable`}
+                        className={`playback-control ${(fading || !current.playing || !loaded) ? "disabled" : "clickable"} unselectable`}
                         onClick={handleFadeOut}
                     />
                 </div>
@@ -372,5 +421,23 @@ export function AudioControls(props: AudioControlsProps) {
         >
             <FontAwesomeIcon icon={faClose} />
         </div>
+        {
+            (!loaded && !errored) ?
+            <Oval
+                height="16"
+                width="16"
+                color="var(--OBR-Purple-Select)"
+                secondaryColor="var(--OBR-Purple-Select-transparent)"
+                strokeWidth="10"
+                wrapperClass="loading-spinner"
+            />
+            :
+            errored && <FontAwesomeIcon 
+                icon={faCircleExclamation}
+                className="error-indicator clickable" 
+                title={errorMessage}
+                onClick={() => { setErrored(false); audioRef.current?.load?.(); } }
+            />
+        }
     </div>;
 }
