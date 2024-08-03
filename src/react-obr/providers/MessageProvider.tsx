@@ -1,8 +1,10 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 
-import OBR from "@owlbear-rodeo/sdk";
+import BaseOBR from "@owlbear-rodeo/sdk";
 import { arrayEqual } from "../../hooks";
 import { useOBR } from "./BaseOBRProvider";
+import { APP_KEY } from "../../config";
 
 export interface Message {
     sender: string;
@@ -16,7 +18,7 @@ interface InternalMessage extends Message {
 
 export type DestinationOptions = "REMOTE" | "LOCAL" | "ALL";
 
-interface OBRMessageContextType {
+export interface OBRMessageContextType {
     sendMessage: (message: unknown, to?: string[], destination?: DestinationOptions) => void;
     registerMessageHandler: (handler: (msg: Message) => void) => () => void;
 }
@@ -27,19 +29,28 @@ const OBRMessageContext = createContext<OBRMessageContextType>({
 });
 export const useOBRMessaging = () => useContext(OBRMessageContext);
 
-export function OBRMessageProvider({ children, appKey }: { children: React.ReactNode, appKey: string }) {
-    const { player, party } = useOBR();
+export function OBRMessageProvider({ children, appKey, proxy }: { children: React.ReactNode, appKey: string, proxy: boolean }) {
+    const { player, party, ready } = useOBR();
 
     const [ handlers, setHandlers ] = useState<((msg: Message) => void)[]>([]);
     const [ partyIDs, setPartyIDs ] = useState<{ id: string, connectionId: string }[]>([]);
+    
+    const fOBR = useCallback(() => {
+        if (proxy) {
+            return window.opener[APP_KEY]?.OBR as (typeof BaseOBR) | undefined;
+        }
+        return window[APP_KEY]?.OBR;
+    }, [proxy]);
+    const OBR = fOBR();
 
     const sendMessage = useCallback((message: unknown, to?: string[], destination?: DestinationOptions) => {
+        if (OBR == undefined) return;
         OBR.broadcast.sendMessage(appKey, {
             sender: player?.id,
             recipients: to,
             message: message
         }, { destination: destination ?? "REMOTE" });
-    }, [appKey, player?.id]);
+    }, [appKey, player?.id, OBR]);
 
     const registerMessageHandler = useCallback((handler: (msg: Message) => void) => {
         setHandlers(prev => [...prev, handler]);
@@ -58,6 +69,9 @@ export function OBRMessageProvider({ children, appKey }: { children: React.React
     }, [party, partyIDs]);
 
     useEffect(() => {
+        if (OBR == undefined) return;
+        if (!ready) return;
+        
         return OBR.broadcast.onMessage(appKey, e => {
             const messageData = e.data as InternalMessage;
             if (messageData.recipients === undefined || (player?.id && messageData.recipients.includes(player.id))) {
@@ -68,7 +82,7 @@ export function OBRMessageProvider({ children, appKey }: { children: React.React
                 }));
             }
         });
-    }, [player?.id, handlers, appKey, partyIDs]);
+    }, [player?.id, handlers, appKey, partyIDs, ready, OBR]);
 
     return <OBRMessageContext.Provider value={{sendMessage, registerMessageHandler}}>
         { children }

@@ -1,6 +1,6 @@
 import { Track, useTracks } from "../components/TrackProvider";
-import { faGear, faImage, faList, faMusic, faUpload } from "@fortawesome/free-solid-svg-icons";
-import { useEffect, useMemo, useState } from "react";
+import { faGear, faImage, faList, faMusic, faUpload, faUpRightFromSquare } from "@fortawesome/free-solid-svg-icons";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AudioPlayerView } from "./AudioPlayerView";
 import { ExportView } from "./ExportView";
@@ -12,6 +12,9 @@ import { TrackListView } from "./TrackListView";
 import { useArrayCompareMemoize } from "../hooks";
 import { useAudioPlayer } from "../components/AudioPlayerProvider";
 import { useOBRMessaging } from "../react-obr/providers";
+import { APP_KEY } from "../config";
+import OBR from "@owlbear-rodeo/sdk";
+import { useSettings } from "../components/SettingsProvider";
 
 type Screen = "track-list" | "player" | "export" | "scene" | "settings";
 
@@ -56,14 +59,42 @@ function Navbar({ selectedScreen, setSelectedScreen }: { selectedScreen: Screen,
 }
 
 export function GMView() {
-    const [ selectedScreen, setSelectedScreen ] = useState<Screen>("track-list");
     const { sendMessage, registerMessageHandler } = useOBRMessaging();
     const { playing } = useAudioPlayer();
-    const { addTrack } = useTracks();
+    const { addTrack, reload: reloadTracks } = useTracks();
+    const { reload: reloadSettings } = useSettings();
     const playingPlaylists = useMemo(() => Object.keys(playing), [playing]);
     const memoizedPlayingPlaylists = useArrayCompareMemoize(playingPlaylists);
 
+    const [ selectedScreen, setSelectedScreen ] = useState<Screen>("track-list");
+    const [ isPoppedOut, setPoppedOut ] = useState(false);
+    const popup = useRef<Window|null>(null);
+
+    const openPopup = () => {
+        OBR.action.getHeight().then(height => {
+            popup.current = window.open(
+                `${document.location.origin}/popup${document.location.search}`,
+                `${APP_KEY}/popup`,
+                "popup,width=500,height=600"
+            );
+            setPoppedOut(true);
+            OBR.action.setHeight(50);
+            const popupInterval = setInterval(() => {
+                if (popup.current?.closed) {
+                    clearInterval(popupInterval);
+                    popup.current = null;
+                    setPoppedOut(false);
+                    OBR.action.setHeight(height ?? 500);
+                    reloadTracks();
+                    reloadSettings();
+                }
+            }, 250);
+        });
+    }
+
     useEffect(() => {
+        if (isPoppedOut) return;
+
         return registerMessageHandler(message => {
             const messageContent = message.message as MessageContent;
             if (messageContent.type === "get-playlists") {
@@ -94,14 +125,32 @@ export function GMView() {
                 addTrack(track);
             }
         });
-    }, [playing, addTrack, registerMessageHandler, sendMessage]);
+    }, [playing, addTrack, registerMessageHandler, sendMessage, isPoppedOut]);
 
     useEffect(() => {
+        if (isPoppedOut) return;
         sendMessage({ type: "playlists", payload: memoizedPlayingPlaylists });
-    }, [memoizedPlayingPlaylists, sendMessage]);
+    }, [memoizedPlayingPlaylists, sendMessage, isPoppedOut]);
+
+    if (isPoppedOut) {
+        return <div className="inactive-window">
+            <p>
+            Hoot is running in another window.
+            </p>
+        </div>;
+    }
     
     return <>
         <Navbar selectedScreen={selectedScreen} setSelectedScreen={setSelectedScreen} />
+        {
+            document.location.pathname !== "/popup" &&
+            <div 
+                className="popout clickable"
+                onClick={openPopup}
+            >
+                <FontAwesomeIcon icon={faUpRightFromSquare} />
+            </div>
+        }
         <div className="body" style={{ display: selectedScreen === "track-list" ? undefined : "none"}}>
             <TrackListView />
         </div>

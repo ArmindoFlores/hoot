@@ -1,17 +1,20 @@
-import OBR, { Metadata, Permission, Player } from "@owlbear-rodeo/sdk";
-import React, { createContext, useContext, useEffect, useState } from "react";
+/* eslint-disable react-refresh/only-export-components */
+import BaseOBR, { Metadata, Permission, Player } from "@owlbear-rodeo/sdk";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { APP_KEY } from "../../config";
 
-interface BaseOBRContextType {
+export interface BaseOBRContextType {
     party: Player[];
     player: Player|null;
     roomMetadata: Metadata;
     sceneMetadata: Metadata;
     setRoomMetadata: (metadata: Partial<Metadata>) => void;
     setSceneMetadata: (metadata: Partial<Metadata>) => void;
+    setPlayerMetadata: (metadata: Partial<Metadata>) => void;
     roomPermissions: Permission[];
     ready: boolean;
     sceneReady: boolean;
-};
+}
 
 const BaseOBRContext = createContext<BaseOBRContextType>({
     party: [],
@@ -20,13 +23,14 @@ const BaseOBRContext = createContext<BaseOBRContextType>({
     sceneMetadata: {},
     setRoomMetadata: () => {},
     setSceneMetadata: () => {},
+    setPlayerMetadata: () => {},
     roomPermissions: [],
     ready: false,
     sceneReady: false,
 });
 export const useOBR = () => useContext(BaseOBRContext);
 
-export function BaseOBRProvider({ children }: { children: React.ReactNode }) {
+export function BaseOBRProvider({ children, proxy }: { children: React.ReactNode, proxy: boolean }) {
     const [ party, setParty ] = useState<Player[]>([]);
     const [ player, setPlayer ] = useState<Player|null>(null);
     const [ roomMetadata, _setRoomMetadata ] = useState<Metadata>({});
@@ -34,77 +38,94 @@ export function BaseOBRProvider({ children }: { children: React.ReactNode }) {
     const [ sceneReady, setSceneReady ] = useState(false);
     const [ roomPermissions, setRoomPermissions ] = useState<Permission[]>([]);
     const [ ready, setReady ] = useState(false);
+    
+    const fOBR = useCallback(() => {
+        if (proxy) {
+            return window.opener[APP_KEY]?.OBR as (typeof BaseOBR) | undefined;
+        }
+        return window[APP_KEY]?.OBR;
+    }, [proxy]);
+    const OBR = fOBR();
 
     // Subscribe to OBR initialization
     useEffect(() => {
+        if (OBR == undefined) return;
         if (OBR.isReady) {
             setReady(true);
         }
-        OBR.onReady(() => setReady(true));
-    }, []);
+        return OBR.onReady(() => setReady(true));
+    }, [OBR]);
 
     // Subscribe to party changes
     useEffect(() => {
+        if (OBR == undefined) return;
         if (ready) {
             return OBR.party.onChange(players => {
                 setParty(players);
             });
         }
-    }, [ready]);
+    }, [ready, OBR]);
 
     // Subscribe to player changes
     useEffect(() => {
+        if (OBR == undefined) return;
         if (ready) {
             return OBR.player.onChange(newPlayer => {
                 setPlayer(newPlayer);
             });
         }
-    }, [ready]);
+    }, [ready, OBR]);
     useEffect(() => {
+        if (OBR == undefined) return;
         if (ready && player === null) {
             setPlayer(party.find(player => player.id === OBR.player.id) ?? null);
         }
-    }, [ready, party]);
+    }, [ready, party, player, OBR]);
 
     // Subscribe to metadata changes
     useEffect(() => {
+        if (OBR == undefined) return;
         if (ready) {
             return OBR.room.onMetadataChange(metadata => {
                 _setRoomMetadata(metadata);
             });
         }
-    }, [ready]);
+    }, [ready, OBR]);
 
     // Subscribe to metadata changes
     useEffect(() => {
+        if (OBR == undefined) return;
         if (ready) {
             return OBR.scene.onMetadataChange(metadata => {
                 _setSceneMetadata(metadata);
             });
         }
-    }, [ready]);
+    }, [ready, OBR]);
 
     // Subscribe to permission changes
     useEffect(() => {
+        if (OBR == undefined) return;
         if (ready) {
             return OBR.room.onPermissionsChange(permissions => {
                 setRoomPermissions(permissions);
             });
         }
-    }, [ready]);
+    }, [ready, OBR]);
 
     // Subscribe to scene readiness changes
     useEffect(() => {
+        if (OBR == undefined) return;
         if (ready) {
             return OBR.scene.onReadyChange(ready => {
                 if (!ready) _setSceneMetadata({});
                 setSceneReady(ready);
             });
         }
-    }, [ready])
+    }, [ready, OBR])
 
     // Initialize values after setup
     useEffect(() => {
+        if (OBR == undefined) return;
         if (ready) {
             const initPromises = [
                 OBR.party.getPlayers().then(setParty),
@@ -116,17 +137,32 @@ export function BaseOBRProvider({ children }: { children: React.ReactNode }) {
             ]
             Promise.all(initPromises).catch(() => null);
         }
-    }, [ready]);
+    }, [ready, OBR]);
 
-    const setRoomMetadata = (metadata: Partial<Metadata>) => {
+    const setRoomMetadata = useCallback((metadata: Partial<Metadata>) => {
+        if (OBR == undefined) return;
         OBR.room.setMetadata(metadata);
-    }
+    }, [OBR]);
 
-    const setSceneMetadata = (metadata: Partial<Metadata>) => {
+    const setSceneMetadata = useCallback((metadata: Partial<Metadata>) => {
+        if (OBR == undefined) return;
         OBR.scene.setMetadata(metadata);
+    }, [OBR]);
+
+    const setPlayerMetadata = useCallback((metadata: Partial<Metadata>) => {
+        if (OBR == undefined) return;
+        OBR.player.setMetadata(metadata);
+    }, [OBR]);
+
+    if (!proxy) {
+        // This is the main extension window, we define a global OBR object
+        if (window[APP_KEY] === undefined) {
+            window[APP_KEY] = {};
+        }
+        window[APP_KEY].OBR = BaseOBR;
     }
 
-    return <BaseOBRContext.Provider value={{ready, sceneReady, party, player, roomMetadata, sceneMetadata, setRoomMetadata, setSceneMetadata, roomPermissions}}>
+    return <BaseOBRContext.Provider value={{ready, sceneReady, party, player, roomMetadata, sceneMetadata, setRoomMetadata, setSceneMetadata, setPlayerMetadata, roomPermissions}}>
         { children }
     </BaseOBRContext.Provider>;
 }

@@ -1,7 +1,10 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 
-import { STORAGE_KEYS } from "../config";
-import localforage from "localforage";
+import { APP_KEY } from "../config";
+import { useOBR } from "../react-obr/providers";
+
+const KEY = `${APP_KEY}/playlistVolumes`;
 
 interface PlayerSettingsContextType {
     playlistVolume: number;
@@ -15,22 +18,27 @@ const PlayerSettingsContext = createContext<PlayerSettingsContextType>({
 export const usePlayerSettings = () => useContext(PlayerSettingsContext);
 
 export function PlayerSettingsProvider({ children, playlist }: { children: React.ReactNode, playlist?: string }) {
+    const { player, setPlayerMetadata } = useOBR();
+
     const [ playlistVolume, _setPlaylistVolume ] = useState(1);
 
     const setPlaylistVolume = useCallback((volume: number) => {
         if (playlist == undefined) return;
-        _setPlaylistVolume(volume);
-        localforage.setItem(STORAGE_KEYS.PLAYLIST_VOLUME+playlist, volume);
-    }, [playlist]);
+
+        const playlistVolumes = player?.metadata?.[KEY] as (Record<string, number>|undefined) ?? {};
+        playlistVolumes[playlist] = volume;
+
+        setPlayerMetadata({ [KEY]: playlistVolumes });
+    }, [playlist, player, setPlayerMetadata]);
 
     useEffect(() => {
         if (playlist == undefined) return;
-        localforage.getItem(STORAGE_KEYS.PLAYLIST_VOLUME+playlist).then(stored => {
-            if (stored == null) return;
-            if (typeof stored !== "number") return;
-            _setPlaylistVolume(stored); 
-        });
-    }, [playlist]);
+        const playlistVolumes = player?.metadata?.[KEY] as (Record<string, number>|undefined) ?? {};
+        const possibleVolume = playlistVolumes[playlist];
+        if (possibleVolume !== undefined) {
+            _setPlaylistVolume(possibleVolume);
+        }
+    }, [playlist, player]);
 
     return <PlayerSettingsContext.Provider value={{playlistVolume, setPlaylistVolume}}>
         { children }

@@ -1,8 +1,9 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 
 import OBR from "@owlbear-rodeo/sdk";
-import { STORAGE_KEYS } from "../config";
-import localforage from "localforage";
+import { APP_KEY, STORAGE_KEYS } from "../config";
+import baselocalforage from "localforage";
 
 export interface Track {
     name: string;
@@ -16,6 +17,7 @@ interface TrackContextType {
     addTrack: (track: Track) => void;
     removeTrack: (track: string, playlist: string) => void;
     importTracks: (tracks: Track[]) => void;
+    reload: () => void;
 }
 
 function trackArrayToMap(trackList: Track[]) {
@@ -57,14 +59,25 @@ const TrackContext = createContext<TrackContextType>({
     addTrack: () => {},
     removeTrack: () => {},
     importTracks: () => {},
+    reload: () => {},
 });
 export const useTracks = () => useContext(TrackContext);
 
-export function TrackProvider({ children }: { children: React.ReactNode }) {
+export function TrackProvider({ children, proxy }: { children: React.ReactNode, proxy: boolean }) {
     const [ tracks, setTracks ] = useState<TrackContextType["tracks"]>(new Map());
     const [ playlists, setPlaylists ] = useState<TrackContextType["playlists"]>([]);
+    const [ triggerReload, setTriggerReload ] = useState(0);
+
+    const flocalforage = useCallback(() => {
+        if (proxy) {
+            return window.opener[APP_KEY]?.localforage as (typeof baselocalforage) | undefined;
+        }
+        return window[APP_KEY]?.localforage;
+    }, [proxy]);
+    const localforage = flocalforage();
 
     const addTrack = useCallback((track: Track) => {
+        if (localforage == undefined) return;
         for (const playlist of track.playlists) {
             const playlistObject = tracks.get(playlist);
             if (playlistObject != undefined) {
@@ -82,9 +95,10 @@ export function TrackProvider({ children }: { children: React.ReactNode }) {
         localforage.setItem(STORAGE_KEYS.TRACKS, trackMapToArray(tracks)).then(
             () => OBR.notification.show("Added track", "SUCCESS")
         );
-    }, [tracks]);
+    }, [tracks, localforage]);
 
     const removeTrack = useCallback((track: string, playlist: string) => {
+        if (localforage == undefined) return;
         const trackList = tracks.get(playlist);
         if (trackList == undefined) {
             OBR.notification.show(`Invalid playlist '${playlist}'`, "ERROR");
@@ -101,9 +115,10 @@ export function TrackProvider({ children }: { children: React.ReactNode }) {
         localforage.setItem(STORAGE_KEYS.TRACKS, trackMapToArray(tracks)).then(
             () => OBR.notification.show("Deleted track", "SUCCESS")
         );
-    }, [tracks, setTracks, setPlaylists]);
+    }, [tracks, setTracks, setPlaylists, localforage]);
 
     const importTracks = useCallback((trackList: Track[]) => {
+        if (localforage == undefined) return;
         try {
             const tracks = trackArrayToMap(trackList);
             setTracks(tracks);
@@ -115,9 +130,14 @@ export function TrackProvider({ children }: { children: React.ReactNode }) {
             console.error(e);
             OBR.notification.show("Error importing tracks", "ERROR");
         }
-    }, [setTracks, setPlaylists]);
+    }, [setTracks, setPlaylists, localforage]);
+
+    const reload = useCallback(() => {
+        setTriggerReload(previous => previous + 1);
+    }, []);
 
     useEffect(() => {
+        if (localforage == undefined) return;
         localforage.getItem(STORAGE_KEYS.TRACKS).then(stored => {
             if (stored == null) {
                 return;
@@ -132,9 +152,17 @@ export function TrackProvider({ children }: { children: React.ReactNode }) {
                 OBR.notification.show("Error loading tracks", "ERROR");
             }
         });
-    }, []);
+    }, [localforage, triggerReload]);
 
-    return <TrackContext.Provider value={{tracks, playlists, importTracks, addTrack, removeTrack}}>
+    if (!proxy) {
+        // This is the main extension window, we define a global localforage object
+        if (window[APP_KEY] === undefined) {
+            window[APP_KEY] = {};
+        }
+        window[APP_KEY].localforage = baselocalforage;
+    }
+
+    return <TrackContext.Provider value={{tracks, playlists, importTracks, addTrack, removeTrack, reload}}>
         { children }
     </TrackContext.Provider>;
 }
