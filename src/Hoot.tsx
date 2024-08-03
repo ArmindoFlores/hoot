@@ -1,5 +1,5 @@
-
 import "./Hoot.css";
+
 import { BaseOBRProvider, useOBR } from "./react-obr/providers/BaseOBRProvider";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 
@@ -34,8 +34,7 @@ function MainApp({ proxy = false }: { proxy?: boolean }) {
     if (player == null) {
         return <p>Could not load Owlbear Extension.</p>;
     }
-    if (player.role == "GM") {
-        
+    if (player.role == "GM") { 
         return <TrackProvider proxy={proxy}>
             <SettingsProvider proxy={proxy}>
                 <AudioPlayerProvider>

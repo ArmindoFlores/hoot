@@ -1,6 +1,8 @@
 /* eslint-disable react-refresh/only-export-components */
+
 import BaseOBR, { Metadata, Permission, Player } from "@owlbear-rodeo/sdk";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+
 import { APP_KEY } from "../../config";
 
 export interface BaseOBRContextType {
@@ -29,6 +31,11 @@ const BaseOBRContext = createContext<BaseOBRContextType>({
     sceneReady: false,
 });
 export const useOBR = () => useContext(BaseOBRContext);
+
+if (window[APP_KEY] === undefined) {
+    window[APP_KEY] = {};
+}
+window[APP_KEY].OBR = BaseOBR;
 
 export function BaseOBRProvider({ children, proxy }: { children: React.ReactNode, proxy: boolean }) {
     const [ party, setParty ] = useState<Player[]>([]);
@@ -153,14 +160,6 @@ export function BaseOBRProvider({ children, proxy }: { children: React.ReactNode
         if (OBR == undefined) return;
         OBR.player.setMetadata(metadata);
     }, [OBR]);
-
-    if (!proxy) {
-        // This is the main extension window, we define a global OBR object
-        if (window[APP_KEY] === undefined) {
-            window[APP_KEY] = {};
-        }
-        window[APP_KEY].OBR = BaseOBR;
-    }
 
     return <BaseOBRContext.Provider value={{ready, sceneReady, party, player, roomMetadata, sceneMetadata, setRoomMetadata, setSceneMetadata, setPlayerMetadata, roomPermissions}}>
         { children }

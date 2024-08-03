@@ -1,8 +1,9 @@
 /* eslint-disable react-refresh/only-export-components */
+
+import { APP_KEY, STORAGE_KEYS } from "../config";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 
 import OBR from "@owlbear-rodeo/sdk";
-import { APP_KEY, STORAGE_KEYS } from "../config";
 import baselocalforage from "localforage";
 
 export interface Track {
@@ -62,6 +63,11 @@ const TrackContext = createContext<TrackContextType>({
     reload: () => {},
 });
 export const useTracks = () => useContext(TrackContext);
+
+if (window[APP_KEY] === undefined) {
+    window[APP_KEY] = {};
+}
+window[APP_KEY].localforage = baselocalforage;
 
 export function TrackProvider({ children, proxy }: { children: React.ReactNode, proxy: boolean }) {
     const [ tracks, setTracks ] = useState<TrackContextType["tracks"]>(new Map());
@@ -153,14 +159,6 @@ export function TrackProvider({ children, proxy }: { children: React.ReactNode, 
             }
         });
     }, [localforage, triggerReload]);
-
-    if (!proxy) {
-        // This is the main extension window, we define a global localforage object
-        if (window[APP_KEY] === undefined) {
-            window[APP_KEY] = {};
-        }
-        window[APP_KEY].localforage = baselocalforage;
-    }
 
     return <TrackContext.Provider value={{tracks, playlists, importTracks, addTrack, removeTrack, reload}}>
         { children }
