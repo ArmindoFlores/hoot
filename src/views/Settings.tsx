@@ -7,8 +7,10 @@ export function SettingsView() {
     const { 
         fadeTime,
         stopOtherTracks,
+        enableAutoplay,
         setFadeTime,
         setStopOtherTracks,
+        setEnableAutoplay,
     } = useSettings();
 
     const [ fadeInputValue, setFadeInputValue ] = useState("");
@@ -36,14 +38,18 @@ export function SettingsView() {
     return <div className="generic-view">
         <div className="generic-view-inner">
             <div className="setting-row">
-                <label htmlFor="fade-time" className="setting-label">Fade in/out time</label>
-                <div className="setting-value">
-                    <input id="fade-time" className={`small-input ${invalidFadeValue ? "invalid-value" : ""}`} value={fadeInputValue} onChange={handleChange} /> ms
-                </div>
+                <label htmlFor="stop-old-tracks" className="setting-label">Enable autoplay</label>
+                <Toggle id="stop-old-tracks" checked={enableAutoplay} onChange={event => setEnableAutoplay(event.target.checked)} type="checkbox" />
             </div>
             <div className="setting-row">
                 <label htmlFor="stop-old-tracks" className="setting-label">Stop old tracks when autoplaying</label>
                 <Toggle id="stop-old-tracks" checked={stopOtherTracks} onChange={event => setStopOtherTracks(event.target.checked)} type="checkbox" />
+            </div>
+            <div className="setting-row">
+                <label htmlFor="fade-time" className="setting-label">Fade in/out time</label>
+                <div className="setting-value">
+                    <input id="fade-time" className={`small-input ${invalidFadeValue ? "invalid-value" : ""}`} value={fadeInputValue} onChange={handleChange} /> ms
+                </div>
             </div>
         </div>
     </div>;

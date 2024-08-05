@@ -150,7 +150,7 @@ function AutoplayPlaylistItem({ autoplayEntry, setAutoplayEntry, setAutoplay }: 
 export function SceneView() {
     const { tracks, playlists } = useTracks();
     const { setPlaylist, playing } = useAudioPlayer();
-    const { stopOtherTracks } = useSettings();
+    const { stopOtherTracks, enableAutoplay } = useSettings();
     const { sceneMetadata, setSceneMetadata, sceneReady } = useOBR();
     const { sendMessage } = useOBRMessaging();
 
@@ -192,10 +192,10 @@ export function SceneView() {
         const autoplay = sceneMetadata[`${APP_KEY}/autoplay`] as (AutoplayList|undefined);
         setAutoplay(autoplay ?? []);
         setPlaylistsToFadeIn([]);
-        if (autoplay && autoplay.length) {
+        if (enableAutoplay && autoplay && autoplay.length) {
             setTriggerAutoplay(true);
         }
-    }, [sceneMetadata]);
+    }, [sceneMetadata, enableAutoplay]);
 
     useEffect(() => {
         if (!sceneReady) {

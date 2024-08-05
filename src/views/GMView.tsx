@@ -79,12 +79,14 @@ export function GMView() {
             );
             setPoppedOut(true);
             OBR.action.setHeight(50);
+            OBR.action.close();
             const popupInterval = setInterval(() => {
                 if (popup.current?.closed) {
                     clearInterval(popupInterval);
                     popup.current = null;
                     setPoppedOut(false);
                     OBR.action.setHeight(height ?? 500);
+                    OBR.action.open();
                     reloadTracks();
                     reloadSettings();
                 }

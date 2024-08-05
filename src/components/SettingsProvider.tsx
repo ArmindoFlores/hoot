@@ -6,6 +6,8 @@ import baselocalforage from "localforage";
 interface SettingsContextType {
     fadeTime: number;
     stopOtherTracks: boolean;
+    enableAutoplay: boolean;
+    setEnableAutoplay: (stop: boolean) => void;
     setStopOtherTracks: (stop: boolean) => void;
     setFadeTime: (fadeTime: number) => void;
     reload: () => void;
@@ -14,8 +16,10 @@ interface SettingsContextType {
 const SettingsContext = createContext<SettingsContextType>({
     fadeTime: 4500, 
     stopOtherTracks: false,
+    enableAutoplay: true,
     setFadeTime: () => {},
     setStopOtherTracks: () => {},
+    setEnableAutoplay: () => {},
     reload: () => {},
 });
 // eslint-disable-next-line react-refresh/only-export-components
@@ -24,6 +28,7 @@ export const useSettings = () => useContext(SettingsContext);
 export function SettingsProvider({ children, proxy }: { children: React.ReactNode, proxy: boolean }) {
     const [ fadeTime, _setFadeTime ] = useState(4500);
     const [ stopOtherTracks, _setStopOtherTracks ] = useState(false);
+    const [ enableAutoplay, setEnableAutoplay ] = useState(true);
     const [ triggerReload, setTriggerReload ] = useState(0);
 
     const flocalforage = useCallback(() => {
@@ -72,7 +77,17 @@ export function SettingsProvider({ children, proxy }: { children: React.ReactNod
         window[APP_KEY].localforage = baselocalforage;
     }
 
-    return <SettingsContext.Provider value={{fadeTime, stopOtherTracks, setFadeTime, setStopOtherTracks, reload}}>
+    return <SettingsContext.Provider
+        value={{
+            fadeTime, 
+            stopOtherTracks, 
+            enableAutoplay,
+            setFadeTime, 
+            setStopOtherTracks,
+            setEnableAutoplay, 
+            reload
+        }}
+    >
         { children }
     </SettingsContext.Provider>;
 }
