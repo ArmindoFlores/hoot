@@ -28,7 +28,7 @@ export const useSettings = () => useContext(SettingsContext);
 export function SettingsProvider({ children, proxy }: { children: React.ReactNode, proxy: boolean }) {
     const [ fadeTime, _setFadeTime ] = useState(4500);
     const [ stopOtherTracks, _setStopOtherTracks ] = useState(false);
-    const [ enableAutoplay, setEnableAutoplay ] = useState(true);
+    const [ enableAutoplay, _setEnableAutoplay ] = useState(true);
     const [ triggerReload, setTriggerReload ] = useState(0);
 
     const flocalforage = useCallback(() => {
@@ -53,6 +53,12 @@ export function SettingsProvider({ children, proxy }: { children: React.ReactNod
         if (localforage == undefined) return;
         _setStopOtherTracks(stop);
         localforage.setItem(STORAGE_KEYS.STOP_OTHER_TRACKS, stop);
+    }, [localforage]);
+
+    const setEnableAutoplay = useCallback((enable: boolean) => {
+        if (localforage == undefined) return;
+        _setEnableAutoplay(enable);
+        localforage.setItem(STORAGE_KEYS.ENABLE_AUTOPLAY, enable);
     }, [localforage]);
 
     useEffect(() => {

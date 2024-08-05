@@ -5,5 +5,6 @@ export const STORAGE_KEYS = {
     TRACKS: "tracks",
     FADE_DURATION: "settings-fade-duration",
     STOP_OTHER_TRACKS: "settings-stop-other-tracks",
+    ENABLE_AUTOPLAY: "settings-enable-autoplay",
     PLAYLIST_VOLUME: "playlist-volume-",
 };
