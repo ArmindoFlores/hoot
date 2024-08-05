@@ -73,6 +73,11 @@ export function SettingsProvider({ children, proxy }: { children: React.ReactNod
             if (typeof stored !== "boolean") return;
             _setStopOtherTracks(stored);
         });
+        localforage.getItem(STORAGE_KEYS.ENABLE_AUTOPLAY).then(stored => {
+            if (stored == null) return;
+            if (typeof stored !== "boolean") return;
+            _setEnableAutoplay(stored);
+        });
     }, [localforage, triggerReload]);
 
     if (!proxy) {
