@@ -6,6 +6,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { APP_KEY } from "./config";
 import { AddTrackView } from "./views/AddTrackView";
 import { AudioPlayerProvider } from "./components/AudioPlayerProvider";
+import { AuthProvider } from "./components/AuthProvider";
 import { GMView } from "./views/GMView";
 import { OBRMessageProvider } from "./react-obr/providers";
 import { PlayerView } from "./views/PlayerView";
@@ -36,11 +37,13 @@ function MainApp({ proxy = false }: { proxy?: boolean }) {
     }
     if (player.role == "GM") { 
         return <TrackProvider proxy={proxy}>
-            <SettingsProvider proxy={proxy}>
-                <AudioPlayerProvider>
-                    <GMView />
-                </AudioPlayerProvider>
-            </SettingsProvider>
+            <AuthProvider proxy={proxy}>
+                <SettingsProvider proxy={proxy}>
+                    <AudioPlayerProvider>
+                        <GMView />
+                    </AudioPlayerProvider>
+                </SettingsProvider>
+            </AuthProvider>
         </TrackProvider>;
     }
     else {

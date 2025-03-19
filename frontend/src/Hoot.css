@@ -533,6 +533,11 @@
     width: 6rem;
 }
 
+.setting-profile {
+    display: flex;
+    flex-direction: column;
+}
+
 .invalid-value {
     border-color: red;
     outline-color: red;

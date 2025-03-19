@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import Toggle from "react-toggle";
+import { useAuth } from "../components/AuthProvider";
 import { useSettings } from "../components/SettingsProvider";
 
 export function SettingsView() {
@@ -12,6 +13,11 @@ export function SettingsView() {
         setStopOtherTracks,
         setEnableAutoplay,
     } = useSettings();
+
+    const {
+        username,
+        status
+    } = useAuth();
 
     const [ fadeInputValue, setFadeInputValue ] = useState("");
     const [ invalidFadeValue, setInvalidFadeValue ] = useState(false);
@@ -50,6 +56,14 @@ export function SettingsView() {
                 <div className="setting-value">
                     <input id="fade-time" className={`small-input ${invalidFadeValue ? "invalid-value" : ""}`} value={fadeInputValue} onChange={handleChange} /> ms
                 </div>
+            </div>
+            <br></br>
+            <div className="settings-profile">
+                <hr></hr>
+                {
+                    status === "LOGGED_OUT" &&
+                    <p>You are logged out.</p>
+                }
             </div>
         </div>
     </div>;
