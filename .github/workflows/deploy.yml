@@ -21,4 +21,4 @@ jobs:
       - name: Deploy to Dokku
         run: |
           git remote add dokku dokku@ssh.apps.armindo.eu:hoot || true
-          git push dokku main -f
+          git push dokku v2 -f
