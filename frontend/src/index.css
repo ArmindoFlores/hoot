@@ -74,6 +74,21 @@ input:focus {
     opacity: 0.5;
 }
 
+button {
+    background: var(--OBR-dark-blue-transparent);
+    border-radius: 10px;
+    border: 1px solid white;
+    padding: 0.25rem 0.75rem;
+    color: white;
+    cursor: pointer;
+    user-select: none;
+}
+button:disabled {
+    cursor: default;
+    border-color: rgb(172, 172, 172);
+    color: rgb(172, 172, 172);
+}
+
 h1,h2,h3,h4,h5,h6 {
     margin: 0;
 }

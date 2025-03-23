@@ -1,19 +1,19 @@
 import { Track, useTracks } from "../components/TrackProvider";
-import { faGear, faImage, faList, faMusic, faUpload, faUpRightFromSquare } from "@fortawesome/free-solid-svg-icons";
+import { faGear, faImage, faList, faMusic, faUpRightFromSquare, faUpload } from "@fortawesome/free-solid-svg-icons";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { APP_KEY } from "../config";
 import { AudioPlayerView } from "./AudioPlayerView";
 import { ExportView } from "./ExportView";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { MessageContent } from "../types/messages";
+import OBR from "@owlbear-rodeo/sdk";
 import { SceneView } from "./SceneView";
 import { SettingsView } from "./Settings";
 import { TrackListView } from "./TrackListView";
 import { useArrayCompareMemoize } from "../hooks";
 import { useAudioPlayer } from "../components/AudioPlayerProvider";
 import { useOBRMessaging } from "../react-obr/providers";
-import { APP_KEY } from "../config";
-import OBR from "@owlbear-rodeo/sdk";
 import { useSettings } from "../components/SettingsProvider";
 
 type Screen = "track-list" | "player" | "export" | "scene" | "settings";
@@ -123,7 +123,7 @@ export function GMView() {
                 }
             }
             else if (messageContent.type === "add-track") {
-                const track = messageContent.payload as Track;
+                const track = messageContent.payload as Track & { file?: File };
                 addTrack(track);
             }
         });

@@ -21,7 +21,7 @@ export function TrackListView() {
             }
             return [...oldList, playlist];
         });
-    }, [expandedPlaylists]);
+    }, []);
 
     const trackMatchesSearch = useCallback((track: Track) => {
         if (!search) {
@@ -48,11 +48,11 @@ export function TrackListView() {
         if (!playingPlaylists.includes(playlist)) {
             return false;
         }
-        if (playing[playlist].track !== track) {
+        if (playing[playlist].track.name !== track.name) {
             return false;
         }
         return true;
-    }, [playing]);
+    }, [playing, playingPlaylists]);
 
     const playTrack = useCallback((track: Track, playlist: string) => {
         setTrack(track, playlist);

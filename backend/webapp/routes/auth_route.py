@@ -24,21 +24,15 @@ def login():
     if email is None or password is None:
         return {"error": "Invalid request"}
 
-    result = middleware.auth.login(email, password)
-    if result:
-        return {"result": "Login successful"}
-    return {"error": "Login failed", "status_code": 401}
-
-@auth.route("/status", methods=["GET"])
-@jsonify
-@middleware.auth.supports_login
-def status():
-    if not flask.request.is_json:
-        return {"error": "Invalid request"}
-    
-    return {
-        "result": "logged_in" if middleware.auth.user != None else "logged_out"
-    }
+    user = middleware.auth.login(email, password)
+    if user is not None:
+        return {
+            "username": user.username,
+            "email": user.email,
+            "total_storage": user.total_storage(),
+            "used_storage": user.used_storage(),
+        }
+    return {"error": "Invalid username or password", "status_code": 401}
 
 @auth.route("/logout", methods=["POST"])
 @jsonify

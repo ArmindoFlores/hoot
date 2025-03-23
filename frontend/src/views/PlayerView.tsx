@@ -1,3 +1,4 @@
+import { PlayerSettingsProvider, usePlayerSettings } from "../components/PlayerSettingsProvider";
 import { faVolumeHigh, faVolumeLow, faVolumeMute, faVolumeOff } from "@fortawesome/free-solid-svg-icons";
 import { fadeInVolume, fadeOutVolume } from "../utils";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -8,7 +9,6 @@ import { MessageContent } from "../types/messages";
 import OBR from "@owlbear-rodeo/sdk";
 import ReactSlider from "react-slider";
 import { SimpleTrack } from "../types/tracks";
-import { PlayerSettingsProvider, usePlayerSettings } from "../components/PlayerSettingsProvider";
 
 type TrackWithDuration = SimpleTrack & { duration?: number };
 interface PlayerAudioIndicatorProps {
@@ -320,9 +320,9 @@ export function PlayerView() {
             <h2>Currently Playing</h2>
             {
                 autoplayErrorOccurred &&
-                <div className="button clickable" onClick={restartPlayback}>
+                <button onClick={restartPlayback}>
                     Restart Playback
-                </div>
+                </button>
             }
         </div>
         <div className="player-track-display">

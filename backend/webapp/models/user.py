@@ -15,8 +15,11 @@ class User(db.Model):
     playlists = db.relationship("Playlist", back_populates="owner")    
     tracks = db.relationship("Track", back_populates="owner")    
 
-    def used_space(self):
+    def total_storage(self):
+        return 2 * 1024 * 1024 * 1024
+
+    def used_storage(self):
         return sum([track.size for track in self.tracks])
 
-    def available_space(self):
-        return 2 * 1024 * 1024 * 1024 - self.used_space()
+    def available_storage(self):
+        return self.total_storage() - self.used_storage()

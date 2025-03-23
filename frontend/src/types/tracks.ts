@@ -6,3 +6,12 @@ export interface SimpleTrack {
     volume: number;
     playing: boolean;
 }
+
+export interface OnlineTrack {
+    id: number;
+    name: string;
+    playlists?: string[];
+    source?: string;
+    source_expiration?: number;
+    size: number;
+}

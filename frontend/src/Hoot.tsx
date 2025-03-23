@@ -8,10 +8,26 @@ import { AddTrackView } from "./views/AddTrackView";
 import { AudioPlayerProvider } from "./components/AudioPlayerProvider";
 import { AuthProvider } from "./components/AuthProvider";
 import { GMView } from "./views/GMView";
+import { ImportLocalTracksModal } from "./views/ImportLocalTracksView";
 import { OBRMessageProvider } from "./react-obr/providers";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { PlayerView } from "./views/PlayerView";
+import { QueryClient } from "@tanstack/react-query";
 import { SettingsProvider } from "./components/SettingsProvider";
 import { TrackProvider } from "./components/TrackProvider";
+import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
+
+const queryClient = new QueryClient({
+    defaultOptions: {
+        queries: {
+            gcTime: 1000 * 60 * 60 * 24,
+        },
+    },
+});
+
+const persister = createSyncStoragePersister({
+    storage: window.localStorage,
+});
 
 function withOBRProvider(element: JSX.Element, proxy: boolean): JSX.Element {
     return <BaseOBRProvider proxy={proxy}>
@@ -36,15 +52,20 @@ function MainApp({ proxy = false }: { proxy?: boolean }) {
         return <p>Could not load Owlbear Extension.</p>;
     }
     if (player.role == "GM") { 
-        return <TrackProvider proxy={proxy}>
+        return <PersistQueryClientProvider
+            client={queryClient}
+            persistOptions={{ persister }}
+        >
             <AuthProvider proxy={proxy}>
-                <SettingsProvider proxy={proxy}>
-                    <AudioPlayerProvider>
-                        <GMView />
-                    </AudioPlayerProvider>
-                </SettingsProvider>
+                <TrackProvider proxy={proxy}>
+                    <SettingsProvider proxy={proxy}>
+                        <AudioPlayerProvider>
+                            <GMView />
+                        </AudioPlayerProvider>
+                    </SettingsProvider>
+                </TrackProvider>
             </AuthProvider>
-        </TrackProvider>;
+        </PersistQueryClientProvider>;
     }
     else {
         return <PlayerView />;
@@ -52,9 +73,16 @@ function MainApp({ proxy = false }: { proxy?: boolean }) {
 }
 
 function AddTrackModal() {
-    return <TrackProvider proxy={false}>
-        <AddTrackView />
-    </TrackProvider>;
+    return <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{ persister }}
+    >
+        <AuthProvider proxy={false}>
+            <TrackProvider proxy={false}>
+                <AddTrackView />
+            </TrackProvider>
+        </AuthProvider>
+    </PersistQueryClientProvider>;
 }
 
 export default function Hoot() {
@@ -62,6 +90,7 @@ export default function Hoot() {
         <Routes>
             <Route path="/" element={withOBRProvider(<MainApp />, false)} />
             <Route path="/add-track" element={withOBRProvider(<AddTrackModal />, false)} />
+            <Route path="/import-local-tracks" element={withOBRProvider(<ImportLocalTracksModal />, false)} />
             <Route path="/popup" element={withOBRProvider(<PopupMainApp />, true)} />
         </Routes>
     </BrowserRouter>;

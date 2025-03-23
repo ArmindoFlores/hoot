@@ -336,9 +336,9 @@ export function SceneView() {
                 }
                 <br></br>
                 <div className="scene-button-container">
-                    <div className="button clickable unselectable" onClick={addNewPlaylist}>
+                    <button onClick={addNewPlaylist}>
                         <p className="bold text-medium"><FontAwesomeIcon icon={faAdd} /> Add Playlist</p>
-                    </div>
+                    </button>
                 </div>
                 </>) :
                 <p>

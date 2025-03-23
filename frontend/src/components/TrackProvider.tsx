@@ -2,22 +2,28 @@
 
 import { APP_KEY, STORAGE_KEYS } from "../config";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { apiService, isError } from "../services/apiService";
 
 import OBR from "@owlbear-rodeo/sdk";
 import baselocalforage from "localforage";
+import { useAuth } from "./AuthProvider";
 
 export interface Track {
     name: string;
     source: string;
     playlists: string[];
+    id?: number;
+    source_expiration?: number;
 }
 
 interface TrackContextType {
     tracks: Map<string, Track[]>;
     playlists: string[];
-    addTrack: (track: Track) => void;
+    hasLocalTracks: boolean;
+    addTrack: (track: Track & { file?: File }) => void;
     removeTrack: (track: string, playlist: string) => void;
     importTracks: (tracks: Track[]) => void;
+    updateTrack: (track: Track) => void;
     reload: () => void;
 }
 
@@ -57,9 +63,11 @@ function trackMapToArray(tracks: Map<string, Track[]>) {
 const TrackContext = createContext<TrackContextType>({
     tracks: new Map(),
     playlists: [],
+    hasLocalTracks: false,
     addTrack: () => {},
     removeTrack: () => {},
     importTracks: () => {},
+    updateTrack: () => {},
     reload: () => {},
 });
 export const useTracks = () => useContext(TrackContext);
@@ -73,6 +81,8 @@ export function TrackProvider({ children, proxy }: { children: React.ReactNode, 
     const [ tracks, setTracks ] = useState<TrackContextType["tracks"]>(new Map());
     const [ playlists, setPlaylists ] = useState<TrackContextType["playlists"]>([]);
     const [ triggerReload, setTriggerReload ] = useState(0);
+    const [ hasLocalTracks, setHasLocalTracks ] = useState(false);
+    const { status } = useAuth();
 
     const flocalforage = useCallback(() => {
         if (proxy) {
@@ -82,49 +92,92 @@ export function TrackProvider({ children, proxy }: { children: React.ReactNode, 
     }, [proxy]);
     const localforage = flocalforage();
 
-    const addTrack = useCallback((track: Track) => {
-        if (localforage == undefined) return;
-        for (const playlist of track.playlists) {
-            const playlistObject = tracks.get(playlist);
-            if (playlistObject != undefined) {
-                const existing = playlistObject.find(existingTrack => existingTrack.name === track.name);
-                if (existing === undefined) {
-                    playlistObject.push(track);
+    const addTrack = useCallback((track: Track & { file?: File }) => {
+        const doWork = (track: Track & { file?: File }) => {
+            for (const playlist of track.playlists) {
+                const playlistObject = tracks.get(playlist);
+                if (playlistObject != undefined) {
+                    const existing = playlistObject.find(existingTrack => existingTrack.name === track.name);
+                    if (existing === undefined) {
+                        playlistObject.push(track);
+                    }
+                }
+                else {
+                    tracks.set(playlist, [track]);
                 }
             }
-            else {
-                tracks.set(playlist, [track]);
-            }
+            setTracks(tracks);
+            setPlaylists(Array.from(tracks.keys()));
         }
-        setTracks(tracks);
-        setPlaylists(Array.from(tracks.keys()));
-        localforage.setItem(STORAGE_KEYS.TRACKS, trackMapToArray(tracks)).then(
-            () => OBR.notification.show("Added track", "SUCCESS")
-        );
-    }, [tracks, localforage]);
+
+        if (status === "LOGGED_OUT") {
+            if (localforage == undefined) return;
+            doWork(track);
+            localforage.setItem(STORAGE_KEYS.TRACKS, trackMapToArray(tracks)).then(
+                () => OBR.notification.show("Added track", "SUCCESS")
+            );
+        }
+        if (status === "LOGGED_IN") {
+            apiService.addTrack(track.name, track.playlists, track.file!).then(result => {
+                if (isError(result)) {
+                    throw new Error(result.error);
+                }
+                doWork(result as Track);
+                OBR.notification.show("Added track", "SUCCESS");
+            }).catch((error: Error) => {
+                console.error(error);
+                OBR.notification.show(`Couldn't add track (${error.message})`, "ERROR");
+            });
+        }
+    }, [tracks, localforage, status]);
 
     const removeTrack = useCallback((track: string, playlist: string) => {
-        if (localforage == undefined) return;
-        const trackList = tracks.get(playlist);
-        if (trackList == undefined) {
-            OBR.notification.show(`Invalid playlist '${playlist}'`, "ERROR");
-            return;
+        const update = (trackList: Track[]) => {
+            const newTrackList = trackList.filter(existingTrack => existingTrack.name !== track);
+            if (newTrackList.length === trackList.length) {
+                OBR.notification.show(`Invalid track '${track}'`, "ERROR");
+                return;
+            }
+            tracks.set(playlist, newTrackList);
+            setTracks(tracks);
+            setPlaylists(Array.from(tracks.keys()));
         }
-        const newTrackList = trackList.filter(existingTrack => existingTrack.name !== track);
-        if (newTrackList.length === trackList.length) {
-            OBR.notification.show(`Invalid track '${track}'`, "ERROR");
-            return;
-        }
-        tracks.set(playlist, newTrackList);
-        setTracks(tracks);
-        setPlaylists(Array.from(tracks.keys()));
-        localforage.setItem(STORAGE_KEYS.TRACKS, trackMapToArray(tracks)).then(
-            () => OBR.notification.show("Deleted track", "SUCCESS")
-        );
-    }, [tracks, setTracks, setPlaylists, localforage]);
 
+        if (status === "LOGGED_OUT") {
+            if (localforage == undefined) return;
+            const trackList = tracks.get(playlist);
+            if (trackList == undefined) {
+                OBR.notification.show(`Invalid playlist '${playlist}'`, "ERROR");
+                return;
+            }
+            update(trackList);
+            localforage.setItem(STORAGE_KEYS.TRACKS, trackMapToArray(tracks)).then(
+                () => OBR.notification.show("Deleted track", "SUCCESS")
+            );
+        }
+        if (status === "LOGGED_IN") {
+            const trackList = tracks.get(playlist);
+            if (trackList == undefined) return;
+
+            const trackObj = trackList.find(t => t.name === track);
+            if (trackObj == undefined) return;
+            apiService.deleteTrack(
+                trackObj.id!,
+                playlist
+            ).then(result => {
+                if (isError(result)) {
+                    throw new Error(result.error);
+                }
+                OBR.notification.show("Deleted track", "SUCCESS");
+                update(trackList);
+            }).catch((error: Error) => {
+                OBR.notification.show(`Couldn't delete track (${error.message})`, "ERROR");
+            });
+        }
+    }, [tracks, setTracks, setPlaylists, localforage, status]);
+    
     const importTracks = useCallback((trackList: Track[]) => {
-        if (localforage == undefined) return;
+        if (localforage == undefined || status === "LOGGED_IN") return;
         try {
             const tracks = trackArrayToMap(trackList);
             setTracks(tracks);
@@ -136,7 +189,22 @@ export function TrackProvider({ children, proxy }: { children: React.ReactNode, 
             console.error(e);
             OBR.notification.show("Error importing tracks", "ERROR");
         }
-    }, [setTracks, setPlaylists, localforage]);
+    }, [status, setTracks, setPlaylists, localforage]);
+
+    const updateTrack = useCallback((track: Track) => {
+        if (status === "LOGGED_OUT" || track.id == undefined) return;
+        for (const trackList of tracks.values()) {
+            for (const existingTrack of trackList) {
+                if (existingTrack.id === track.id) {
+                    existingTrack.name = track.name;
+                    existingTrack.source = track.source;
+                    existingTrack.source_expiration = track.source_expiration;
+                    console.log("Updated track!")
+                }
+            }
+        }
+        setTracks(tracks);
+    }, [status, tracks]);
 
     const reload = useCallback(() => {
         setTriggerReload(previous => previous + 1);
@@ -146,6 +214,24 @@ export function TrackProvider({ children, proxy }: { children: React.ReactNode, 
         if (localforage == undefined) return;
         localforage.getItem(STORAGE_KEYS.TRACKS).then(stored => {
             if (stored == null) {
+                setHasLocalTracks(false);
+                return;
+            }
+            if ((stored as Track[]).length > 0) {
+                setHasLocalTracks(true);
+            }
+            else {
+                setHasLocalTracks(false);
+            }
+        })
+    }, [tracks, localforage]);
+
+    useEffect(() => {
+        if (status == "LOGGED_IN" || localforage == undefined) return;
+        let cancelled = false;
+
+        localforage.getItem(STORAGE_KEYS.TRACKS).then(stored => {
+            if (cancelled || stored == null) {
                 return;
             }
             try {
@@ -158,9 +244,35 @@ export function TrackProvider({ children, proxy }: { children: React.ReactNode, 
                 OBR.notification.show("Error loading tracks", "ERROR");
             }
         });
-    }, [localforage, triggerReload]);
 
-    return <TrackContext.Provider value={{tracks, playlists, importTracks, addTrack, removeTrack, reload}}>
+        return () => {
+            cancelled = true;
+        }
+    }, [localforage, triggerReload, status]);
+
+    useEffect(() => {
+        if (status == "LOGGED_OUT") return;
+        let cancelled = false;
+
+        apiService.getTracks().then(result => {
+            if (cancelled) return;
+            if (isError(result)) {
+                throw new Error(result.error);
+            }
+            const tracks = new Map(Object.entries(result));
+            setTracks(tracks);
+            setPlaylists(Array.from(tracks.keys()));
+        }).catch((error: Error) => {
+            console.error(error);
+            OBR.notification.show(`Error retrieving tracks (${error.message})`, "ERROR");
+        });
+
+        return () => {
+            cancelled = true;
+        }
+    }, [triggerReload, status]);
+
+    return <TrackContext.Provider value={{tracks, playlists, hasLocalTracks, importTracks, addTrack, removeTrack, updateTrack, reload}}>
         { children }
     </TrackContext.Provider>;
 }

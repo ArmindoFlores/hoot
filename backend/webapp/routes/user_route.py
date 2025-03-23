@@ -13,12 +13,27 @@ from sqlalchemy import or_
 
 
 import config
-from .. import models
+from .. import middleware, models
 from ..services import EmailClient
 from .utils import jsonify, valid_email, valid_username
 
 
 user = flask.Blueprint("user", __name__, url_prefix="/user")
+
+@user.route("", methods=["GET"])
+@jsonify
+@middleware.auth.supports_login
+def status():
+    if not flask.request.is_json:
+        return {"error": "Invalid request"}
+    
+    if middleware.auth.user != None:
+        return {
+            "username": middleware.auth.user.username,
+            "email": middleware.auth.user.email,
+            "total_storage": middleware.auth.user.total_storage(),
+            "used_storage": middleware.auth.user.used_storage(),
+        }
 
 @user.route("", methods=["PUT"])
 @jsonify
@@ -61,7 +76,7 @@ def create_user():
     new_user = models.User(
         email=email,
         username=username,
-        password=bcrypt.hashpw(password.encode(), bcrypt.gensalt()),
+        password=bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode(),
         verification_code=verification_code,
         verification_code_expiration=datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=10)
     )

@@ -55,29 +55,29 @@ def supports_login(route_func):
     
     return f
 
-def login(email: str, password: str) -> bool:
+def login(email: str, password: str) -> models.User | None:
     """Performs authentication and, if successful, sets the user as logged in.
-    Returns `True` if the user was successfully authenticated and `False` otherwise."""
+    Returns the user object authentication was successfull and `None` otherwise."""
 
     if len(email) == 0 or len(password) == 0:
-        return False
+        return None
     
     user = models.User.query.filter(
         models.User.email == email,
-        models.User.password != None
+        models.User.verified == True
     ).first()
     
     if user is None or user.password is None:
-        return False
+        return None
     
     if not bcrypt.checkpw(password.encode(), user.password.encode()):
-        return False
+        return None
 
     session.permanent = True
     session["_authenticated"] = True
     session["_created_at"] = datetime.datetime.now()
     session["_user_id"] = user.id
-    return True
+    return user
 
 def logout() -> None:
     """Sets the user as logged out"""

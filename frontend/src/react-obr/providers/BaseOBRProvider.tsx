@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 
 import BaseOBR, { Metadata, Permission, Player } from "@owlbear-rodeo/sdk";
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 
 import { APP_KEY } from "../../config";
 

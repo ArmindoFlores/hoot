@@ -7,3 +7,29 @@ export function fadeInVolume(target: number, step: number, totalSteps: number): 
 export function fadeOutVolume(initial: number, step: number, totalSteps: number): number {
     return initial * Math.exp((Math.log(FADE_VOLUME_BASELINE / initial) * step) / totalSteps);
 }
+
+export function byteSize(bytes: number) {
+    const units = ["B", "KB", "MB", "GB"];
+    let unit = 0;
+
+    for (;;) {
+        if (bytes < 1024) {
+            break;
+        }
+        if (unit < units.length-1) {
+            unit++;
+            bytes /= 1024;
+        }
+        else {
+            break;
+        }
+    }
+    return `${Math.round(bytes * 100) / 100}${units[unit]}`;
+}
+
+export function expired(timestampSeconds: number|undefined): boolean {
+    if (timestampSeconds == undefined) return true;
+    
+    const nowSeconds = Date.now() / 1000;
+    return nowSeconds > timestampSeconds;
+}

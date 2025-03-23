@@ -5,9 +5,12 @@ import { useCallback, useRef } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import OBR from "@owlbear-rodeo/sdk";
 import { addTrackModal } from "./AddTrackView";
+import { importLocalTracksModal } from "./ImportLocalTracksView";
+import { useAuth } from "../components/AuthProvider";
 
 export function ExportView() {
-    const { tracks, importTracks } = useTracks();
+    const { tracks, importTracks, hasLocalTracks } = useTracks();
+    const { status } = useAuth();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const exportFile = useCallback(() => {
@@ -61,14 +64,14 @@ export function ExportView() {
     
     return <div className="generic-view">
         <div className="generic-view-inner">
-            <div className="export-button-container">
-                <div className="button clickable unselectable" onClick={exportFile}>
+            <div className="export-button-container" style={{display: status === "LOGGED_IN" ? "none" : "flex"}}>
+                <button onClick={exportFile}>
                     <p className="bold text-medium"><FontAwesomeIcon icon={faFileExport} /> Export</p>
-                </div>
-                <div className="button clickable unselectable" onClick={() => OBR.modal.open(addTrackModal)}>
+                </button>
+                <button onClick={() => OBR.modal.open(addTrackModal)}>
                     <p className="bold text-medium"><FontAwesomeIcon icon={faAdd} /> Add Track</p>
-                </div>
-                <div className="button clickable unselectable" onClick={() => fileInputRef.current?.click?.()}>
+                </button>
+                <button onClick={() => fileInputRef.current?.click?.()}>
                     <input
                         type="file"
                         accept=".json"
@@ -77,12 +80,12 @@ export function ExportView() {
                         style={{ display: "none" }}
                     />
                     <p className="bold text-medium"><FontAwesomeIcon icon={faFileImport} /> Import</p>
-                </div>
+                </button>
             </div>
             <br></br>
-            <div className="instructions">
+            <div className="instructions" style={{display: status === "LOGGED_IN" ? "none" : "block"}}>
                 <p>
-                    To bring your music into Hoot, simply use the import button to
+                    To bring your music into Hoot, simply use the import button to upload
                     a JSON file containing your curated track list, following the format below.
                     Once imported, Hoot saves this data into your browser storage.
                 </p>
@@ -108,6 +111,38 @@ export function ExportView() {
                 </p>
                 <br></br>
                 <p><span className="bold">NOTE:</span> Browsers might delete this data, so it's important to keep a backup!</p>
+            </div>
+            <div className="instructions" style={{display: status === "LOGGED_OUT" ? "none" : "block"}}>
+                <p>
+                    To bring your music into Hoot, simply use the add track button to
+                    start uploading your files. You can check your usage in the settings tab.
+                    These tracks will be synced across all your devices.
+                </p>
+                <br></br>
+                {
+                    hasLocalTracks &&
+                    <>
+                        <p>
+                            To import your local tracks into your Hoot account, you can use the
+                            import local tracks button.
+                        </p>
+                        <p>
+                            <span style={{fontWeight: "bold"}}>Note:</span> your local tracks won't 
+                            be available while you're logged in.
+                        </p>
+                    </>
+                }
+                <div className="export-button-container">
+                    <button onClick={() => OBR.modal.open(addTrackModal)}>
+                        <p className="bold text-medium"><FontAwesomeIcon icon={faAdd} /> Add Track</p>
+                    </button>
+                    {
+                        hasLocalTracks && 
+                        <button onClick={() => OBR.modal.open(importLocalTracksModal)}>
+                            <p className="bold text-medium"><FontAwesomeIcon icon={faFileImport} /> Import local tracks</p>
+                        </button>   
+                    }
+                </div>
             </div>
         </div>
     </div>;

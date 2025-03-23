@@ -1,7 +1,10 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useCallback, useContext, useState } from "react";
+import { Track, useTracks } from "./TrackProvider";
+import { apiService, isError } from "../services/apiService";
 
-import { Track } from "./TrackProvider";
+import OBR from "@owlbear-rodeo/sdk";
+import { expired } from "../utils";
 
 export type RepeatMode = "no-repeat" | "repeat-all" | "repeat-self";
 
@@ -54,6 +57,7 @@ const AudioPlayerContext = createContext<AudioPlayerContextType>({
 export const useAudioPlayer = () => useContext(AudioPlayerContext);
 
 export function AudioPlayerProvider({ children }: { children: React.ReactNode }) {
+    const { updateTrack } = useTracks();
     const [ volume, setGlobalVolume ] = useState<number>(0.5);
     const [ playing, setPlaying ] = useState<AudioPlayerContextType["playing"]>({});
 
@@ -73,29 +77,49 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     }, []);
 
     const setTrack = useCallback((track: Track | undefined, playlist: string) => {
-        setPlaying(oldPlaying => {
-            if (track === undefined) {
-                return omitKey(oldPlaying, playlist);
-            }
-            return {
-                ...oldPlaying,
-                [playlist]: oldPlaying[playlist] ? {
-                    ...oldPlaying[playlist],
-                    track,
-                    time: 0,
-                } : {
-                    track,
-                    playing: false,
-                    time: 0,
-                    shuffle: false,
-                    loaded: false,
-                    repeatMode: "repeat-all",
-                    volume: 0.75,
-                    duration: undefined
+        const doWork = (track: Track|undefined) => {
+            setPlaying(oldPlaying => {
+                if (track === undefined) {
+                    return omitKey(oldPlaying, playlist);
                 }
-            };
-        });
-    }, []);
+                return {
+                    ...oldPlaying,
+                    [playlist]: oldPlaying[playlist] ? {
+                        ...oldPlaying[playlist],
+                        track,
+                        time: 0,
+                    } : {
+                        track,
+                        playing: false,
+                        time: 0,
+                        shuffle: false,
+                        loaded: false,
+                        repeatMode: "repeat-all",
+                        volume: 0.75,
+                        duration: undefined
+                    }
+                };
+            });
+        }
+
+        if (track != undefined && track.id != undefined && (track.source == undefined || expired(track.source_expiration))) {
+            // This is a remote track and we have no ID
+            apiService.getTrack(track.id).then(result => {
+                if (isError(result)) {
+                    throw new Error(result.error);
+                }
+                setTrack(result as Track, playlist);
+                updateTrack(result as Track);
+                doWork(result as Track);
+            }).catch((error: Error) => {
+                console.error(error);
+                OBR.notification.show(`Couldn't retrieve track source (${error.message})`, "ERROR");
+            });
+            return;
+        }
+        doWork(track);
+        
+    }, [updateTrack]);
 
     const setPlaylist = useCallback((playlist: string, info: PlaylistInfo) => {
         setPlaying(oldPlaying => ({
