@@ -6,3 +6,5 @@ python-dotenv
 bcrypt
 pg8000
 email_validator
+boto3
+python-magic
