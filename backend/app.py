@@ -9,7 +9,10 @@ from flask_migrate import Migrate
 from flask_session import Session
 
 app = flask.Flask(__name__)
-app.config["SQLALCHEMY_DATABASE_URI"] = f"{config.DB_ENGINE}+{config.DB_DRIVER}://{config.DB_USERNAME}:{quote_plus(config.DB_PASSWORD)}@{config.DB_SERVER}/{config.DB_NAME}"
+if config.DATABASE_URL is not None:
+    app.config["SQLALCHEMY_DATABASE_URI"] = config.DATABASE_URL
+else:
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"{config.DB_ENGINE}+{config.DB_DRIVER}://{config.DB_USERNAME}:{quote_plus(config.DB_PASSWORD)}@{config.DB_SERVER}/{config.DB_NAME}"
 app.config["SESSION_TYPE"] = "filesystem"
 app.config["SESSION_COOKIE_SAMESITE"] = "None"
 app.config["SESSION_COOKIE_SECURE"] = True
