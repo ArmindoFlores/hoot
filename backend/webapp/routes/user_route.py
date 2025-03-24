@@ -34,6 +34,7 @@ def status():
             "total_storage": middleware.auth.user.total_storage(),
             "used_storage": middleware.auth.user.used_storage(),
         }
+    return {"error": "Logged out"}
 
 @user.route("", methods=["PUT"])
 @jsonify
