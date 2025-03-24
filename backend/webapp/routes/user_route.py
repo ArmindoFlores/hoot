@@ -86,8 +86,8 @@ def create_user():
     else:
         matched_user.username = username
         matched_user.password = hashed_pw
-        verification_code = verification_code
-        verification_code_expiration = verification_code_expiration
+        matched_user.verification_code = verification_code
+        matched_user.verification_code_expiration = verification_code_expiration
         
     verification_url = f"https://{config.WEBSITE}/verify/{verification_code}"
 
