@@ -112,6 +112,26 @@ function logout(): ApiResponse<never> {
     );
 }
 
+function signup(email: string, username: string, password: string, confirmPassword: string): ApiResponse<never> {
+    return request(
+        "/user",
+        "PUT",
+        JSON.stringify({
+            email,
+            username,
+            password,
+            confirm_password: confirmPassword
+        })
+    );
+}
+
+function verifyEmail(verificationCode: string) {
+    return request(
+        `/auth/verify/${verificationCode}`,
+        "POST"
+    );
+}
+
 export const apiService = {
     addTrack,
     addTrackFromURL,
@@ -121,4 +141,6 @@ export const apiService = {
     getTracks,
     login,
     logout,
+    signup,
+    verifyEmail,
 };

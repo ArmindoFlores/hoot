@@ -1,8 +1,8 @@
-import { apiService, createQueryFn } from "../services/apiService";
+import { apiService, isError } from "../services/apiService";
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 
+import OBR from "@owlbear-rodeo/sdk";
 import { User } from "../types/user";
-import { useQuery } from "@tanstack/react-query";
 
 type AuthStatus = "LOGGED_IN" | "LOGGED_OUT";
 
@@ -25,10 +25,22 @@ export function AuthProvider({ children }: { children: React.ReactNode, proxy: b
     const [ status, setStatus ] = useState<AuthStatus>("LOGGED_OUT");
     const [ user, setUser ] = useState<User>();
 
-    const authStatus = useQuery({
-        queryKey: ["auth-status"],
-        queryFn: createQueryFn(apiService.getProfile)
-    });
+    useEffect(() => {
+        apiService.getProfile().then(result => {
+            if (isError(result)) {
+                if (result.error.startsWith("Logged out")) {
+                    setStatus("LOGGED_OUT");
+                    return;
+                }
+                throw new Error(result.error);
+            }
+            setStatus("LOGGED_IN");
+            setUser(result);
+        }).catch((error: Error) => {
+            console.error(error);
+            OBR.notification.show(`Couldn't fetch user data (${error.message})`);
+        });
+    }, []);
     
     const doLogin = useCallback((user: User) => {
         setStatus("LOGGED_IN");
@@ -38,14 +50,6 @@ export function AuthProvider({ children }: { children: React.ReactNode, proxy: b
     const doLogout = useCallback(() => {
         setStatus("LOGGED_OUT");
     }, []);
-
-    useEffect(() => {
-        if (authStatus.data == undefined) {
-            return;
-        }
-        setStatus("LOGGED_IN");
-        setUser(authStatus.data);
-    }, [authStatus.data])
 
     return <AuthContext.Provider
         value={{

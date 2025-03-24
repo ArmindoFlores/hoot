@@ -48,9 +48,14 @@ function LoginForm({ onLogin }: { onLogin: (user: User) => void }) {
             />
         </label>
         <br></br>
-        <button disabled={email == "" || password == ""} onClick={handleLogin}>
-            <p className="bold text-medium">Log In</p>
-        </button>
+        <div style={{display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-evenly"}}>
+            <button disabled={email == "" || password == ""} onClick={handleLogin}>
+                <p className="bold text-medium">Log In</p>
+            </button>
+            <p style={{marginLeft: "1rem"}}>
+                Or <a href="/signup" target="_blank" style={{color: "white", fontWeight: "bold"}}>create your account</a>
+            </p>
+        </div>
     </div>;
 }
 

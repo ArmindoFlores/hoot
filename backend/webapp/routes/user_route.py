@@ -52,6 +52,10 @@ def create_user():
 
     if password != confirm_password:
         return {"error": "Passwords do not match"}
+    
+    issues = middleware.auth.verify_password(password)
+    if issues is not None:
+        return issues
 
     if not valid_username(username):
         return {"error": "Invalid username"}
@@ -59,30 +63,33 @@ def create_user():
     if not valid_email(email):
         return {"error": "Invalid email"}
 
-    match = models.User.query.filter(
-        or_(
-            models.User.email == email,
-            models.User.username == username
-        )
+    matched_user = models.User.query.filter(
+        models.User.email == email
     ).first()
 
-    if match is not None:
-        if match.email == email:
-            return {"error": "A user already exists with that email"}
-        else:
-            return {"error": "A user already exists with that username"}
+    if matched_user is not None and matched_user.verified:
+        return {"error": "A user already exists with that email"}
 
     verification_code = secrets.token_urlsafe(32)
+    hashed_pw = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    verification_code_expiration = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=10)
 
-    new_user = models.User(
-        email=email,
-        username=username,
-        password=bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode(),
-        verification_code=verification_code,
-        verification_code_expiration=datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=10)
-    )
-
-    verification_url = f"https://{config.WEBSITE}/auth/verify/{verification_code}"
+    if matched_user is None:
+        new_user = models.User(
+            email=email,
+            username=username,
+            password=hashed_pw,
+            verification_code=verification_code,
+            verification_code_expiration=verification_code_expiration
+        )
+        models.db.session.add(new_user)
+    else:
+        matched_user.username = username
+        matched_user.password = hashed_pw
+        verification_code = verification_code
+        verification_code_expiration = verification_code_expiration
+        
+    verification_url = f"https://{config.WEBSITE}/verify/{verification_code}"
 
     try:
         with open(os.path.join(os.path.dirname(__file__), "..", "services", "resources", "new_user_email_template.html"), "r") as f:
@@ -107,7 +114,6 @@ def create_user():
         return {"error": "Invalid email"}
 
     try:
-        models.db.session.add(new_user)
         models.db.session.commit()
     except Exception:
         traceback.print_exc()

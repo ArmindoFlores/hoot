@@ -27,7 +27,12 @@ class LazyLoadProxy:
     def __getattr__(self, item):
         self._load()
         return getattr(self._value, item)
+    
 
+def verify_password(password: str):
+    if len(password) < 8 or len(password) > 64:
+        return {"error": "Password must be between 8 and 64 characters"}
+    return None
 
 def requires_login(route_func):
     """Decorator that checks if the user is logged in. If not, it returns a 401 error."""
@@ -94,8 +99,9 @@ def change_password(old_password: str, new_password: str, force: bool = False, u
         if not bcrypt.checkpw(old_password.encode(), user.password.encode()):
             return {"error": "Incorrect password", "status_code": 401}
         
-    if len(new_password) < 8 or len(new_password) > 64:
-        return {"error": "Invalid password length"}
+    issues = verify_password(new_password)
+    if issues is not None:
+        return issues
         
     user.password = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
     models.db.session.commit()

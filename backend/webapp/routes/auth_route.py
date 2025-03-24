@@ -58,6 +58,9 @@ def change_password():
 @auth.route("/verify/<verification_code>", methods=["POST"])
 @jsonify
 def verify_email(verification_code):
+    if not flask.request.is_json:
+        return {"error": "Invalid request"}
+    
     user = models.User.query.filter(
         models.User.verified == False,
         models.User.verification_code == verification_code,

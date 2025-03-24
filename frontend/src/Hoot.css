@@ -731,3 +731,36 @@
     justify-content: space-evenly;
     flex-direction: column;
 }
+
+.external-website-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+
+    width: 100vw;
+    height: 100vh;
+
+    background-image: url("/hoot.webp");
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    background-position: center;
+    background-size: cover;
+}
+
+.external-website-container-inner {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+
+    padding: 5rem;
+
+    backdrop-filter: blur(10px);
+    background-color: var(--OBR-dark-blue-transparent);
+}
+
+.go-back-container {
+    position: absolute;
+    top: 1rem;
+    left: 2rem;
+}

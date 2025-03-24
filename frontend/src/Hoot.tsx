@@ -14,7 +14,9 @@ import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client
 import { PlayerView } from "./views/PlayerView";
 import { QueryClient } from "@tanstack/react-query";
 import { SettingsProvider } from "./components/SettingsProvider";
+import { SignUpView } from "./views/SignUpView";
 import { TrackProvider } from "./components/TrackProvider";
+import { VerifyEmailView } from "./views/VerifyEmailView";
 import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
 
 const queryClient = new QueryClient({
@@ -92,6 +94,8 @@ export default function Hoot() {
             <Route path="/add-track" element={withOBRProvider(<AddTrackModal />, false)} />
             <Route path="/import-local-tracks" element={withOBRProvider(<ImportLocalTracksModal />, false)} />
             <Route path="/popup" element={withOBRProvider(<PopupMainApp />, true)} />
+            <Route path="/signup" element={<SignUpView />} />
+            <Route path="/verify/:verificationCode" element={<VerifyEmailView />} />
         </Routes>
     </BrowserRouter>;
 }
