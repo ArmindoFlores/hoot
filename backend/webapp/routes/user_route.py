@@ -107,7 +107,7 @@ def create_user():
             f"To verify your account, please follow visit this website: {verification_url}",
             email_html,
             email,
-            image_folder_path=os.path.join(os.path.dirname(__file__), "..", "services", "resources", "email_images")
+            # image_folder_path=os.path.join(os.path.dirname(__file__), "..", "services", "resources", "email_images")
         )
     except Exception:
         traceback.print_exc()
