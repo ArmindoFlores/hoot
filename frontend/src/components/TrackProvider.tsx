@@ -25,6 +25,7 @@ interface TrackContextType {
     importTracks: (tracks: Track[]) => void;
     updateTrack: (track: Track) => void;
     reload: () => void;
+    purgeLocalTracks: () => void;
 }
 
 function trackArrayToMap(trackList: Track[]) {
@@ -69,6 +70,7 @@ const TrackContext = createContext<TrackContextType>({
     importTracks: () => {},
     updateTrack: () => {},
     reload: () => {},
+    purgeLocalTracks: () => {},
 });
 export const useTracks = () => useContext(TrackContext);
 
@@ -210,6 +212,14 @@ export function TrackProvider({ children, proxy }: { children: React.ReactNode, 
         setTriggerReload(previous => previous + 1);
     }, []);
 
+    const purgeLocalTracks = useCallback(() => {
+        if (localforage == undefined) return;
+
+        localforage.removeItem(STORAGE_KEYS.TRACKS);
+        OBR.notification.show("Local tracks removed", "SUCCESS");
+        reload();
+    }, [localforage, reload]);
+
     useEffect(() => {
         if (localforage == undefined) return;
         localforage.getItem(STORAGE_KEYS.TRACKS).then(stored => {
@@ -272,7 +282,7 @@ export function TrackProvider({ children, proxy }: { children: React.ReactNode, 
         }
     }, [triggerReload, status]);
 
-    return <TrackContext.Provider value={{tracks, playlists, hasLocalTracks, importTracks, addTrack, removeTrack, updateTrack, reload}}>
+    return <TrackContext.Provider value={{tracks, playlists, hasLocalTracks, importTracks, addTrack, removeTrack, updateTrack, reload, purgeLocalTracks}}>
         { children }
     </TrackContext.Provider>;
 }

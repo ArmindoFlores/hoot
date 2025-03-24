@@ -9,6 +9,7 @@ import { AudioPlayerProvider } from "./components/AudioPlayerProvider";
 import { AuthProvider } from "./components/AuthProvider";
 import { GMView } from "./views/GMView";
 import { ImportLocalTracksModal } from "./views/ImportLocalTracksView";
+import Modal from "react-modal";
 import { OBRMessageProvider } from "./react-obr/providers";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { PlayerView } from "./views/PlayerView";
@@ -86,6 +87,8 @@ function AddTrackModal() {
         </AuthProvider>
     </PersistQueryClientProvider>;
 }
+
+Modal.setAppElement("#root");
 
 export default function Hoot() {
     return <BrowserRouter>

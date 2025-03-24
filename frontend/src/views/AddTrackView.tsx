@@ -10,7 +10,7 @@ import { useOBRMessaging } from "../react-obr/providers";
 export const addTrackModal: Modal = {
     id: `${APP_KEY}/add-track`,
     url: "/add-track",
-    height: 250,
+    height: 275,
     width: 400,
 }
 

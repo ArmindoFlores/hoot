@@ -1,17 +1,35 @@
 import { Track, useTracks } from "../components/TrackProvider";
-import { faAdd, faFileExport, faFileImport } from "@fortawesome/free-solid-svg-icons";
-import { useCallback, useRef } from "react";
+import { faAdd, faFileExport, faFileImport, faTrash } from "@fortawesome/free-solid-svg-icons";
+import { useCallback, useRef, useState } from "react";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import Modal from "react-modal";
 import OBR from "@owlbear-rodeo/sdk";
 import { addTrackModal } from "./AddTrackView";
 import { importLocalTracksModal } from "./ImportLocalTracksView";
 import { useAuth } from "../components/AuthProvider";
 
+type ModalType = "DELETE_TRACKS";
+
 export function ExportView() {
-    const { tracks, importTracks, hasLocalTracks } = useTracks();
+    const { tracks, importTracks, hasLocalTracks, purgeLocalTracks } = useTracks();
     const { status } = useAuth();
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [openedModal, setModalOpened] = useState<ModalType|null>(null);
+    const [isModalClosing, setIsModalClosing] = useState<boolean>(false);
+
+    const openModal = (modalName: ModalType) => {
+        setIsModalClosing(false);
+        setModalOpened(modalName);
+    };
+
+    const closeModal = () => {
+        setIsModalClosing(true);
+        setTimeout(() => {
+            setModalOpened(null);
+            setIsModalClosing(false);
+        }, 300);
+    };
 
     const exportFile = useCallback(() => {
         const trackList = Array.from(new Set(Array.from(tracks.values()).flat()));
@@ -124,26 +142,56 @@ export function ExportView() {
                     <>
                         <p>
                             To import your local tracks into your Hoot account, you can use the
-                            import local tracks button.
+                            import tracks button. You can delete them from local storage after 
+                            that is done.
                         </p>
                         <p>
                             <span style={{fontWeight: "bold"}}>Note:</span> your local tracks won't 
                             be available while you're logged in.
                         </p>
+                        <br></br>
                     </>
                 }
                 <div className="export-button-container">
-                    <button onClick={() => OBR.modal.open(addTrackModal)}>
+                    <button style={{marginRight: "1rem"}} onClick={() => OBR.modal.open(addTrackModal)}>
                         <p className="bold text-medium"><FontAwesomeIcon icon={faAdd} /> Add Track</p>
                     </button>
                     {
-                        hasLocalTracks && 
-                        <button onClick={() => OBR.modal.open(importLocalTracksModal)}>
-                            <p className="bold text-medium"><FontAwesomeIcon icon={faFileImport} /> Import local tracks</p>
-                        </button>   
+                        hasLocalTracks && <>
+                            <button style={{marginRight: "1rem"}} onClick={() => OBR.modal.open(importLocalTracksModal)}>
+                                <p className="bold text-medium"><FontAwesomeIcon icon={faFileImport} /> Import tracks</p>
+                            </button>   
+                            <button onClick={() => openModal("DELETE_TRACKS")}>
+                                <p className="bold text-medium"><FontAwesomeIcon icon={faTrash} /> Delete tracks</p>
+                            </button>  
+                        </>
                     }
                 </div>
             </div>
         </div>
+        <Modal
+            isOpen={openedModal === "DELETE_TRACKS"}
+            onRequestClose={closeModal}
+            contentLabel="Delete tracks"
+            overlayClassName={`modal-overlay ${
+                isModalClosing ? "fade-out" : ""
+            }`}
+            className={`modal-content ${isModalClosing ? "fade-out" : ""}`}
+          >
+            <h2>Delete Tracks</h2>
+            <p>
+                Are you sure you want to delete all your <span style={{fontWeight: "bold"}}>local</span> tracks?
+                This operation is irreversible, so export your tracks before deleting them to keep a backup.
+            </p>
+            <br></br>
+            <div style={{display: "flex", flexDirection: "row", alignContent: "center", justifyContent: "center"}}>
+                <button style={{marginRight: "1rem"}} onClick={() => { purgeLocalTracks(); closeModal(); }}>
+                    <p className="bold text-medium"><FontAwesomeIcon icon={faTrash} /> Delete</p>
+                </button>  
+                <button onClick={() => closeModal()}>
+                    <p className="bold text-medium">Cancel</p>
+                </button>  
+            </div>
+        </Modal>
     </div>;
 }
