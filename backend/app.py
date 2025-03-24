@@ -21,6 +21,10 @@ app.config["SESSION_COOKIE_SECURE"] = True
 app.config["PERMANENT_SESSION_LIFETIME"] = 2592000
 app.config["MAX_CONTENT_LENGTH"] = 1024 * 1024 * 1024
 
+app.register_blueprint(webapp.routes.auth)
+app.register_blueprint(webapp.routes.user)
+app.register_blueprint(webapp.routes.tracks)
+
 CORS(
     app,
     supports_credentials=True,
@@ -35,10 +39,6 @@ CORS(
         }
     }
 )
-
-app.register_blueprint(webapp.routes.auth)
-app.register_blueprint(webapp.routes.user)
-app.register_blueprint(webapp.routes.tracks)
 
 Session(app)
 
