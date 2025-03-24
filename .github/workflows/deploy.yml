@@ -1,0 +1,26 @@
+name: Deploy to Dokku
+on:
+  push:
+    branches:
+      - v2
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+            fetch-depth: 0
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan ssh.apps.armindo.eu >> ~/.ssh/known_hosts
+
+      - name: Deploy to Dokku
+        run: |
+          git remote add dokku dokku@ssh.apps.armindo.eu:hoot || true
+          git push dokku v2 -f

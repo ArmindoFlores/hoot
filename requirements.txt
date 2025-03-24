@@ -1,0 +1,14 @@
+Flask
+Flask-CORS
+Flask-Migrate
+Flask-Session
+Flask-SQLAlchemy
+python-dotenv
+bcrypt
+pg8000
+email_validator
+boto3
+python-magic
+requests
+gunicorn
+psycopg2-binary
