@@ -10,6 +10,8 @@ from flask_session import Session
 
 app = flask.Flask(__name__)
 if config.DATABASE_URL is not None:
+    if config.DATABASE_URL.startswith("postgres://"):
+        config.DATABASE_URL = config.DATABASE_URL.replace("postgres://", "postgresql://", 1)
     app.config["SQLALCHEMY_DATABASE_URI"] = config.DATABASE_URL
 else:
     app.config["SQLALCHEMY_DATABASE_URI"] = f"{config.DB_ENGINE}+{config.DB_DRIVER}://{config.DB_USERNAME}:{quote_plus(config.DB_PASSWORD)}@{config.DB_SERVER}/{config.DB_NAME}"
