@@ -25,8 +25,8 @@ export function SignUpView() {
     };
 
     if (created) {
-        return <div className="signup-view-container">
-            <div className="signup-view-container-inner">
+        return <div className="external-website-container">
+            <div className="external-website-container-inner">
                 <h1>Sign Up</h1>
                 <br></br>
                 <p>Your account has been created! To finalize that process, please check your email inbox and verify your account.</p>
