@@ -29,7 +29,8 @@ CORS(
             "origins": [
                 "http://localhost:*",
                 "http://127.0.0.1:*",
-                "https://owlbear.rodeo"
+                "https://owlbear.rodeo",
+                "https://hoot.armindo.eu",
             ]
         }
     }

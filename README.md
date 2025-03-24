@@ -33,8 +33,5 @@ You might also want to configure Hoot to play certain tracks or playlists when a
 
 
 ## Limitations
-### Storage
-For legal reasons, Hoot cannot store your music, and it doesn't support other services like Spotify or Youtube. Thus, you must either host the tracks yourself, point them to a public file, or use a service such as Dropbox.
-
 ### Autoplay
 Modern browsers have measures against autoplaying media such as videos and audio to enhance their user experience. Unfortunately, that means you might need to go through some extra steps before Hoot can play audio for you. This can all be avoided if Owlbear is installed as a [PWA](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps).
