@@ -1,4 +1,4 @@
-# <img src="https://raw.githubusercontent.com/ArmindoFlores/hoot/main/public/icon.svg" width="40"> Hoot
+# <img src="https://raw.githubusercontent.com/ArmindoFlores/hoot/main/frontend/public/icon.svg" width="40"> Hoot
 
 Hoot is an [Owlbear Rodeo](https://owlbear.rodeo) extension that adds a music library and an audio player controlled by the GM and where tracks are played to the whole party. It provides volume controls for all players, and a lot more detailed options for the GM.
 
