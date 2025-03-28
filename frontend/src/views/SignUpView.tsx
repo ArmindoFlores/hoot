@@ -26,67 +26,71 @@ export function SignUpView() {
 
     if (created) {
         return <div className="external-website-container">
-            <div className="external-website-container-inner">
-                <h1>Sign Up</h1>
-                <br></br>
-                <p>Your account has been created! To finalize that process, please check your email inbox and verify your account.</p>
+            <div className="external-website-container-filter">
+                <div className="external-website-container-inner">
+                    <h1>Sign Up</h1>
+                    <br></br>
+                    <p>Your account has been created! To finalize that process, please check your email inbox and verify your account.</p>
+                </div>
             </div>
         </div>;
     }
 
     return <div className="external-website-container">
-        <div className="external-website-container-inner">
-            <h1>Sign Up</h1>
-            <br></br>
-            <div style={{display: "flex", flexDirection: "column", alignItems: "center"}}>
-            <label style={{display: "flex", flexDirection: "column", alignItems: "flex-start"}} htmlFor="email">
-                    <p className="bold">Email</p>
-                    <input
-                        style={{textAlign: "left"}}
-                        name="email"
-                        value={email}
-                        type="email"
-                        onChange={e => setEmail(e.target.value)}
-                    />
-                </label>
+        <div className="external-website-container-filter">
+            <div className="external-website-container-inner">
+                <h1>Sign Up</h1>
                 <br></br>
-                <label style={{display: "flex", flexDirection: "column", alignItems: "flex-start"}} htmlFor="username">
-                    <p className="bold">Username</p>
-                    <input
-                        style={{textAlign: "left"}}
-                        name="username"
-                        value={username}
-                        type="text"
-                        onChange={e => setUsername(e.target.value)}
-                    />
-                </label>
-                <br></br>
-                <label style={{display: "flex", flexDirection: "column", alignItems: "flex-start"}} htmlFor="password">
-                    <p className="bold">Password</p>
-                    <input
-                        style={{textAlign: "left"}}
-                        name="password"
-                        type="password"
-                        value={password}
-                        onChange={e => setPassword(e.target.value)}
-                    />
-                </label>
-                <br></br>
-                <label style={{display: "flex", flexDirection: "column", alignItems: "flex-start"}} htmlFor="confirm-password">
-                    <p className="bold">Confirm password</p>
-                    <input
-                        style={{textAlign: "left"}}
-                        name="confirm-password"
-                        type="password"
-                        value={confirmPassword}
-                        onChange={e => setConfirmPassword(e.target.value)}
-                    />
-                </label>
-                <br></br>
-                <div style={{display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-evenly"}}>
-                    <button disabled={email == "" || password == ""} onClick={handleLogin}>
-                        <p className="bold text-medium">Sign Up</p>
-                    </button>
+                <div style={{display: "flex", flexDirection: "column", alignItems: "center"}}>
+                <label style={{display: "flex", flexDirection: "column", alignItems: "flex-start"}} htmlFor="email">
+                        <p className="bold">Email</p>
+                        <input
+                            style={{textAlign: "left"}}
+                            name="email"
+                            value={email}
+                            type="email"
+                            onChange={e => setEmail(e.target.value)}
+                        />
+                    </label>
+                    <br></br>
+                    <label style={{display: "flex", flexDirection: "column", alignItems: "flex-start"}} htmlFor="username">
+                        <p className="bold">Username</p>
+                        <input
+                            style={{textAlign: "left"}}
+                            name="username"
+                            value={username}
+                            type="text"
+                            onChange={e => setUsername(e.target.value)}
+                        />
+                    </label>
+                    <br></br>
+                    <label style={{display: "flex", flexDirection: "column", alignItems: "flex-start"}} htmlFor="password">
+                        <p className="bold">Password</p>
+                        <input
+                            style={{textAlign: "left"}}
+                            name="password"
+                            type="password"
+                            value={password}
+                            onChange={e => setPassword(e.target.value)}
+                        />
+                    </label>
+                    <br></br>
+                    <label style={{display: "flex", flexDirection: "column", alignItems: "flex-start"}} htmlFor="confirm-password">
+                        <p className="bold">Confirm password</p>
+                        <input
+                            style={{textAlign: "left"}}
+                            name="confirm-password"
+                            type="password"
+                            value={confirmPassword}
+                            onChange={e => setConfirmPassword(e.target.value)}
+                        />
+                    </label>
+                    <br></br>
+                    <div style={{display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-evenly"}}>
+                        <button disabled={email == "" || password == ""} onClick={handleLogin}>
+                            <p className="bold text-medium">Sign Up</p>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

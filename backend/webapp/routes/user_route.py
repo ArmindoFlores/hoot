@@ -9,7 +9,6 @@ import traceback
 import bcrypt
 import flask
 import secrets
-from sqlalchemy import or_
 
 
 import config
@@ -33,6 +32,8 @@ def status():
             "email": middleware.auth.user.email,
             "total_storage": middleware.auth.user.total_storage(),
             "used_storage": middleware.auth.user.used_storage(),
+            "patreon_member": middleware.auth.user.patreon_member,
+            "patreon_link": middleware.auth.user.patreon_id is not None,
         }
     return {"error": "Logged out"}
 
@@ -120,3 +121,21 @@ def create_user():
         return {"error": "Unknown error occurred"}
 
     return {"result": "Successfully created new user"}
+
+@user.route("/unlink_patreon", methods=["POST"])
+@jsonify
+@middleware.auth.requires_login
+def unlink_patreon():
+    if not flask.request.is_json:
+        return {"error": "Invalid request"}
+
+    hoot_user = models.User.query.filter_by(id=middleware.auth.user.id).first()
+    hoot_user.patreon_member = False
+    hoot_user.patreon_id = None
+    hoot_user.patreon_member_last_checked = None
+    hoot_user.patreon_last_payment = None
+    hoot_user.patreon_access_token = None
+    hoot_user.patreon_refresh_token = None
+    hoot_user.patreon_access_token_expiration = None
+    models.db.session.commit()
+    return {"result": "Successfully unlinked patreon"}

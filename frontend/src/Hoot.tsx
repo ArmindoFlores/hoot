@@ -13,9 +13,11 @@ import Modal from "react-modal";
 import { OBRMessageProvider } from "./react-obr/providers";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { PlayerView } from "./views/PlayerView";
+import { PrivacyPolicyView } from "./views/PrivacyPolicyView";
 import { QueryClient } from "@tanstack/react-query";
 import { SettingsProvider } from "./components/SettingsProvider";
 import { SignUpView } from "./views/SignUpView";
+import { TermsOfServiceView } from "./views/TermsOfServiceView";
 import { TrackProvider } from "./components/TrackProvider";
 import { VerifyEmailView } from "./views/VerifyEmailView";
 import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
@@ -99,6 +101,8 @@ export default function Hoot() {
             <Route path="/popup" element={withOBRProvider(<PopupMainApp />, true)} />
             <Route path="/signup" element={<SignUpView />} />
             <Route path="/verify/:verificationCode" element={<VerifyEmailView />} />
+            <Route path="/tos" element={<TermsOfServiceView />} />
+            <Route path="/privacy" element={<PrivacyPolicyView />} />
         </Routes>
     </BrowserRouter>;
 }

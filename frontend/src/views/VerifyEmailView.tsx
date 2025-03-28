@@ -25,23 +25,25 @@ export function VerifyEmailView() {
     }, [verificationCode]);
 
     return <div className="external-website-container">
-        <div className="external-website-container-inner">
-        <h1>Email Verification</h1>
-        {
-                status === "pending" && <p>
-                    Verifying your email...
-                </p>
-            }
+        <div className="external-website-container-filter">
+            <div className="external-website-container-inner">
+            <h1>Email Verification</h1>
             {
-                status === "success" && <p>
-                    Successfully verified your email. You may now close this page and log in.
-                </p>
-            }
-            {
-                status === "failure" && <p>
-                    An error occurred while verifying your email: <span style={{fontStyle: "italic"}}>{ error }</span>
-                </p>
-            }
+                    status === "pending" && <p>
+                        Verifying your email...
+                    </p>
+                }
+                {
+                    status === "success" && <p>
+                        Successfully verified your email. You may now close this page and log in.
+                    </p>
+                }
+                {
+                    status === "failure" && <p>
+                        An error occurred while verifying your email: <span style={{fontStyle: "italic"}}>{ error }</span>
+                    </p>
+                }
+            </div>
         </div>
     </div>;
 }

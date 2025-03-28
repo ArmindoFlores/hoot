@@ -12,3 +12,4 @@ python-magic
 requests
 gunicorn
 psycopg2-binary
+setuptools

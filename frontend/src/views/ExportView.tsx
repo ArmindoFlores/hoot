@@ -3,8 +3,8 @@ import { faAdd, faFileExport, faFileImport, faTrash } from "@fortawesome/free-so
 import { useCallback, useRef, useState } from "react";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import Modal from "react-modal";
 import OBR from "@owlbear-rodeo/sdk";
+import ReactModal from "react-modal";
 import { addTrackModal } from "./AddTrackView";
 import { importLocalTracksModal } from "./ImportLocalTracksView";
 import { useAuth } from "../components/AuthProvider";
@@ -169,7 +169,7 @@ export function ExportView() {
                 </div>
             </div>
         </div>
-        <Modal
+        <ReactModal
             isOpen={openedModal === "DELETE_TRACKS"}
             onRequestClose={closeModal}
             contentLabel="Delete tracks"
@@ -192,6 +192,6 @@ export function ExportView() {
                     <p className="bold text-medium">Cancel</p>
                 </button>  
             </div>
-        </Modal>
+        </ReactModal>
     </div>;
 }

@@ -125,6 +125,13 @@ function signup(email: string, username: string, password: string, confirmPasswo
     );
 }
 
+function unlinkPatreon(): ApiResponse<never> {
+    return request(
+        "/user/unlink_patreon",
+        "POST",
+    );
+}
+
 function verifyEmail(verificationCode: string) {
     return request(
         `/auth/verify/${verificationCode}`,
@@ -142,5 +149,6 @@ export const apiService = {
     login,
     logout,
     signup,
+    unlinkPatreon,
     verifyEmail,
 };

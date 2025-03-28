@@ -1,4 +1,6 @@
 export const ENDPOINT = import.meta.env.VITE_ENDPOINT;
+export const PATREON_CLIENT_ID = import.meta.env.VITE_PATREON_CLIENT_ID;
+export const PATREON_REDIRECT_URI = `${ENDPOINT}/auth/oauth/redirect`;
 export const REVERSE_DOMAIN = "eu.armindo";
 export const APP_KEY = `${REVERSE_DOMAIN}.hoot`;
 
