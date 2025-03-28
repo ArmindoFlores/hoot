@@ -13,3 +13,4 @@ requests
 gunicorn
 psycopg2-binary
 setuptools
+patreon @ git+https://github.com/Patreon/patreon-python@80c83f018d6bd93b83c188baff727c5e77e01ce6
