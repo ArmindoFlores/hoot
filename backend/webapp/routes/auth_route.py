@@ -114,8 +114,8 @@ def login():
         "email": user.email,
         "total_storage": user.total_storage(),
         "used_storage": user.used_storage(),
-        "patreon_member": middleware.auth.user.patreon_member,
-        "patreon_link": middleware.auth.user.patreon_id is not None,
+        "patreon_member": user.patreon_member,
+        "patreon_link": user.patreon_id is not None,
     }
 
 @auth.route("/logout", methods=["POST"])
