@@ -12,5 +12,11 @@
       "popover": "/",
       "height": 500,
       "width": 500
-    }
+    },
+    "permissions": [
+      {
+        "name": "autoplay",
+        "reason": "Enable Hoot to automatically play music without user interaction"
+      }
+    ]
 }
