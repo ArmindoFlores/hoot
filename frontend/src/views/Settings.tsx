@@ -21,7 +21,8 @@ function LoginForm({ onLogin }: { onLogin: (user: User) => void }) {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
 
-    const handleLogin = () => {
+    const handleLogin = (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
         apiService.login(email, password).then(result => {   
             if (isError(result)) {
                 throw new Error(result.error);
@@ -33,7 +34,7 @@ function LoginForm({ onLogin }: { onLogin: (user: User) => void }) {
         });
     };
 
-    return <div className="login-form">
+    return <form className="login-form" action="#" onSubmit={handleLogin}>
         <label htmlFor="email">
             <p className="bold">Email</p>
             <input
@@ -57,14 +58,14 @@ function LoginForm({ onLogin }: { onLogin: (user: User) => void }) {
         </label>
         <br></br>
         <div style={{display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-evenly"}}>
-            <button disabled={email == "" || password == ""} onClick={handleLogin}>
+            <button disabled={email == "" || password == ""} type="submit">
                 <p className="bold text-medium">Log In</p>
             </button>
             <p style={{marginLeft: "1rem"}}>
                 Or <a href="/signup" target="_blank" style={{color: "white", fontWeight: "bold"}}>create your account</a>
             </p>
         </div>
-    </div>;
+    </form>;
 }
 
 export function SettingsView() {

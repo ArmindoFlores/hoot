@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useCallback, useContext, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { Track, useTracks } from "./TrackProvider";
 import { apiService, isError } from "../services/apiService";
 
@@ -41,25 +41,55 @@ interface AudioPlayerContextType {
     setPlaylist: (playlist: string, info: PlaylistInfo) => void;
 }
 
-const AudioPlayerContext = createContext<AudioPlayerContextType>({ 
-    volume: 0.5, 
-    playing: {}, 
-    setVolume: () => {},
-    setTrack: () => {},
-    setPlaybackTime: () => {},
-    setDuration: () => {},
-    setShuffle: () => {},
-    setLoaded: () => {},
-    setIsPlaying: () => {},
-    setRepeatMode: () => {},
-    setPlaylist: () => {},
+interface TrackedPromise<T> extends Promise<T> {
+    isPending: boolean;
+    isFulfilled: boolean;
+    isRejected: boolean;
+    metadata?: unknown;
+}
+
+function trackPromise<T>(promise: Promise<T>, metadata?: unknown): TrackedPromise<T> {
+    const tracked: TrackedPromise<T> = promise.then(
+        value => {
+            tracked.isPending = false;
+            tracked.isFulfilled = true;
+            return value;
+        },
+        error => {
+            tracked.isPending = false;
+            tracked.isRejected = true;
+            throw error;
+        }
+    ) as TrackedPromise<T>;
+
+    tracked.isPending = true;
+    tracked.isFulfilled = false;
+    tracked.isRejected = false;
+    tracked.metadata = metadata;
+
+    return tracked;
+}
+
+const AudioPlayerContext = createContext<AudioPlayerContextType>({
+    volume: 0.5,
+    playing: {},
+    setVolume: () => { },
+    setTrack: () => { },
+    setPlaybackTime: () => { },
+    setDuration: () => { },
+    setShuffle: () => { },
+    setLoaded: () => { },
+    setIsPlaying: () => { },
+    setRepeatMode: () => { },
+    setPlaylist: () => { },
 });
 export const useAudioPlayer = () => useContext(AudioPlayerContext);
 
 export function AudioPlayerProvider({ children }: { children: React.ReactNode }) {
     const { updateTrack } = useTracks();
-    const [ volume, setGlobalVolume ] = useState<number>(0.5);
-    const [ playing, setPlaying ] = useState<AudioPlayerContextType["playing"]>({});
+    const [volume, setGlobalVolume] = useState<number>(0.5);
+    const [playing, setPlaying] = useState<AudioPlayerContextType["playing"]>({});
+    const fetchingTrackPromises = useRef<TrackedPromise<void>[]>([]);
 
     const setVolume = useCallback((volume: number, playlist?: string) => {
         if (playlist === undefined) {
@@ -77,7 +107,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     }, []);
 
     const setTrack = useCallback((track: Track | undefined, playlist: string) => {
-        const doWork = (track: Track|undefined) => {
+        const doWork = (track: Track | undefined) => {
             setPlaying(oldPlaying => {
                 if (track === undefined) {
                     return omitKey(oldPlaying, playlist);
@@ -118,7 +148,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
             return;
         }
         doWork(track);
-        
+
     }, [updateTrack]);
 
     const setPlaylist = useCallback((playlist: string, info: PlaylistInfo) => {
@@ -188,12 +218,32 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         }));
     }, []);
 
-    return <AudioPlayerContext.Provider 
+    useEffect(() => {
+        fetchingTrackPromises.current = fetchingTrackPromises.current.filter(promise => !promise.isFulfilled);
+        const fetchingTrackIds = fetchingTrackPromises.current.map(promise => promise.metadata) as number[];
+        for (const [playlist, playlistInfo] of Object.entries(playing)) {
+            if (playlistInfo.track == undefined || playlistInfo.track.id == undefined || fetchingTrackIds.includes(playlistInfo.track.id)) continue;
+            if (playlistInfo.track.source == undefined || expired(playlistInfo.track.source_expiration)) {
+                fetchingTrackPromises.current.push(trackPromise(apiService.getTrack(playlistInfo.track.id).then(result => {
+                    if (isError(result)) {
+                        throw new Error(result.error);
+                    }
+                    setTrack(result as Track, playlist);
+                    updateTrack(result as Track);
+                }).catch((error: Error) => {
+                    console.error(error);
+                    OBR.notification.show(`Couldn't retrieve track source (${error.message})`, "ERROR");
+                }), playlistInfo.track.id));
+            }
+        }
+    }, [playing, setTrack, updateTrack]);
+
+    return <AudioPlayerContext.Provider
         value={{
-            volume, 
-            playing, 
-            setVolume, 
-            setTrack, 
+            volume,
+            playing,
+            setVolume,
+            setTrack,
             setPlaybackTime,
             setDuration,
             setShuffle,
@@ -203,6 +253,6 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
             setPlaylist
         }}
     >
-        { children }
+        {children}
     </AudioPlayerContext.Provider>;
 }

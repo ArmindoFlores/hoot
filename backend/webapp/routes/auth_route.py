@@ -24,6 +24,10 @@ def get_or_update_patreon_oauth_token(user: models.User, code = None):
     if user.patreon_access_token and user.patreon_refresh_token and user.patreon_access_token_expiration:
         if user.patreon_access_token_expiration.replace(tzinfo=datetime.timezone.utc) <= now:
             tokens = oauth_client.refresh_token(user.patreon_refresh_token, config.OAUTH_REDIRECT)
+            if "error" in tokens:
+                user.patreon_refresh_token = None
+                user.patreon_access_token = None
+                return None
         else:
             tokens = {
                 "access_token": user.patreon_access_token,
@@ -43,6 +47,9 @@ def update_patreon_status(user: models.User, code = None):
         tokens = get_or_update_patreon_oauth_token(user, code)
     except Exception as e:
         return {"error": str(e)}
+    
+    if tokens is None:
+        return
     
     access_token = tokens["access_token"]
     api_client = patreon.API(access_token)

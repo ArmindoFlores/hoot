@@ -7,14 +7,14 @@ import FadeIn from "../assets/fadein.svg";
 import FadeOut from "../assets/fadeout.svg";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { MessageContent } from "../types/messages";
+import OBR from "@owlbear-rodeo/sdk";
+import { Oval } from "react-loader-spinner";
 import ReactSlider from "react-slider";
 import RepeatSelf from "../assets/repeat-self.svg";
 import { useAudioPlayer } from "./AudioPlayerProvider";
 import { useOBRMessaging } from "../react-obr/providers";
 import { useSettings } from "./SettingsProvider";
 import { useThrottled } from "../hooks";
-import OBR from "@owlbear-rodeo/sdk";
-import { Oval } from "react-loader-spinner";
 
 export interface AudioControlsProps {
     playlist: string;
