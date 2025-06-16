@@ -300,7 +300,7 @@ export function AudioControls(props: AudioControlsProps) {
         return registerMessageHandler(message => {
             const messageContent = message.message as MessageContent;
             if (messageContent.type === "fade") {
-                const payload = messageContent.payload as { fade: "in" | "out", playlist: string };
+                const payload = messageContent.payload;
                 if (payload.playlist !== props.playlist) return;
                 
                 if (payload.fade === "in") {

@@ -1,4 +1,3 @@
-import { Track, useTracks } from "../components/TrackProvider";
 import { faGear, faImage, faList, faMusic, faUpRightFromSquare, faUpload } from "@fortawesome/free-solid-svg-icons";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -15,6 +14,7 @@ import { useArrayCompareMemoize } from "../hooks";
 import { useAudioPlayer } from "../components/AudioPlayerProvider";
 import { useOBRMessaging } from "../react-obr/providers";
 import { useSettings } from "../components/SettingsProvider";
+import { useTracks } from "../components/TrackProvider";
 
 type Screen = "track-list" | "player" | "export" | "scene" | "settings";
 
@@ -60,8 +60,8 @@ function Navbar({ selectedScreen, setSelectedScreen }: { selectedScreen: Screen,
 
 export function GMView() {
     const { sendMessage, registerMessageHandler } = useOBRMessaging();
-    const { playing } = useAudioPlayer();
-    const { addTrack, reload: reloadTracks } = useTracks();
+    const { playing, setIsPlaying, setTrack, setRepeatMode, setShuffle, setVolume } = useAudioPlayer();
+    const { addTrack, reload: reloadTracks, tracks, } = useTracks();
     const { reload: reloadSettings } = useSettings();
     const playingPlaylists = useMemo(() => Object.keys(playing), [playing]);
     const memoizedPlayingPlaylists = useArrayCompareMemoize(playingPlaylists);
@@ -103,7 +103,7 @@ export function GMView() {
                 sendMessage({ type: "playlists", payload: Object.keys(playing) }, [message.sender]);
             }
             else if (messageContent.type === "get-track") {
-                const playlist = messageContent.payload as string;
+                const playlist = messageContent.payload;
                 const track = playing[playlist];
                 if (track !== undefined) {
                     sendMessage(
@@ -123,11 +123,47 @@ export function GMView() {
                 }
             }
             else if (messageContent.type === "add-track") {
-                const track = messageContent.payload as Track & { file?: File };
+                const track = messageContent.payload;
                 addTrack(track);
             }
         });
     }, [playing, addTrack, registerMessageHandler, sendMessage, isPoppedOut]);
+
+    useEffect(() => {
+        if (isPoppedOut) return;
+
+        return registerMessageHandler(message => {
+            // Allow other extensions to talk to hoot
+            const messageContent = message.message as MessageContent;
+            if (messageContent.type === "play") {
+                const payload = messageContent.payload;
+                const playlist = payload.playlist;
+                const trackId = payload.track;
+                const playlistTracks = tracks.get(playlist);
+                if (playlistTracks == undefined) {
+                    console.error("Couldn't find playlist");
+                    return;
+                }
+                const track = playlistTracks.find(t => t.id === trackId);
+                if (track == undefined) {
+                    console.error("Couldn't find track");
+                    return;
+                }
+                if (payload.shuffle != undefined) {
+                    setShuffle(payload.shuffle, playlist);
+                }
+                if (payload.repeatMode != undefined) {
+                    setRepeatMode(payload.repeatMode, playlist);
+                }
+                if (payload.volume != undefined || playing[playlist] == undefined) {
+                    console.log("Setting volume to", payload.volume);
+                    setVolume(payload.volume ?? 0.75, playlist);
+                }
+                setTrack(track, playlist);
+                setIsPlaying(true, playlist);
+            }
+        });
+    }, [isPoppedOut, registerMessageHandler, setIsPlaying, setTrack, tracks, setShuffle, setRepeatMode, setVolume, playing]);
 
     useEffect(() => {
         if (isPoppedOut) return;

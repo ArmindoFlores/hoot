@@ -1,3 +1,4 @@
+import { FadeObject, MessageContent } from "../types/messages";
 import { PlayerSettingsProvider, usePlayerSettings } from "../components/PlayerSettingsProvider";
 import { faVolumeHigh, faVolumeLow, faVolumeMute, faVolumeOff } from "@fortawesome/free-solid-svg-icons";
 import { fadeInVolume, fadeOutVolume } from "../utils";
@@ -5,7 +6,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useOBR, useOBRMessaging } from "../react-obr/providers";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { MessageContent } from "../types/messages";
 import OBR from "@owlbear-rodeo/sdk";
 import ReactSlider from "react-slider";
 import { SimpleTrack } from "../types/tracks";
@@ -17,11 +17,6 @@ interface PlayerAudioIndicatorProps {
     track?: SimpleTrack;
     autoplayError: () => void;
     triggerPlayback: boolean;
-}
-interface FadeObject {
-    playlist: string;
-    fade: "in" | "out";
-    duration: number;
 }
 
 function PlayerAudioIndicator({ 
@@ -71,7 +66,7 @@ function PlayerAudioIndicator({
 
     useEffect(() => {
         if (loaded && audioRef.current && trackWithDuration && !fading) {
-            audioRef.current.volume = globalVolume * trackWithDuration.volume * playlistVolume;
+            audioRef.current.volume = globalVolume * (trackWithDuration.volume ?? 0.75) * (playlistVolume ?? 0.75);
         }
     }, [globalVolume, trackWithDuration, loaded, fading, playlistVolume]);
 
@@ -131,7 +126,7 @@ function PlayerAudioIndicator({
         return registerMessageHandler(message => {
             const messageContent = message.message as MessageContent;
             if (messageContent.type === "fade") {
-                const fadeObject = messageContent.payload as FadeObject;
+                const fadeObject = messageContent.payload;
                 if (fadeObject.playlist !== playlist) return;
                 setFade(fadeObject);
             }

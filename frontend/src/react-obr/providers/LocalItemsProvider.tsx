@@ -7,7 +7,7 @@ interface LocalItemsContextType {
     items: Item[];
     changedItems: string[];
     clearChangedItems: () => void;
-};
+}
 
 const LocalItemsContext = createContext<LocalItemsContextType>({ items: [], changedItems: [], clearChangedItems: () => {} });
 export const useLocalItems = () => useContext(LocalItemsContext);
