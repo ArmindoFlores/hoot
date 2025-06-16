@@ -156,7 +156,6 @@ export function GMView() {
                     setRepeatMode(payload.repeatMode, playlist);
                 }
                 if (payload.volume != undefined || playing[playlist] == undefined) {
-                    console.log("Setting volume to", payload.volume);
                     setVolume(payload.volume ?? 0.75, playlist);
                 }
                 setTrack(track, playlist);
