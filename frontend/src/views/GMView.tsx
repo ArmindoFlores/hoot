@@ -138,7 +138,8 @@ export function GMView() {
             if (messageContent.type === "play") {
                 const payload = messageContent.payload;
                 const playlist = payload.playlist;
-                const trackId = payload.track;
+                const trackName = payload.track;
+                const trackId = Array.from(tracks.entries()).map(o => o[1]).flat().find(t => t.name === trackName)?.id;
                 const playlistTracks = tracks.get(playlist);
                 if (playlistTracks == undefined) {
                     console.error("Couldn't find playlist");

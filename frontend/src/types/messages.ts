@@ -10,7 +10,7 @@ export interface FadeObject {
 
 export interface PlayMessagePayload {
     playlist: string;
-    track: number;
+    track: string;
     repeatMode?: RepeatMode;
     shuffle?: boolean;
     volume?: number;
