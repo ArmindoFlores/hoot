@@ -1,112 +1,54 @@
-import { faGear, faImage, faList, faMusic, faUpRightFromSquare, faUpload } from "@fortawesome/free-solid-svg-icons";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Box, Tab, Tabs } from "@mui/material";
+import { useEffect, useState } from "react";
 
 import { APP_KEY } from "../config";
 import { AudioPlayerView } from "./AudioPlayerView";
 import { ExportView } from "./ExportView";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { MessageContent } from "../types/messages";
-import OBR from "@owlbear-rodeo/sdk";
 import { SceneView } from "./SceneView";
 import { SettingsView } from "./Settings";
 import { TrackListView } from "./TrackListView";
-import { useArrayCompareMemoize } from "../hooks";
 import { useAudioPlayer } from "../components/AudioPlayerProvider";
-import { useOBRMessaging } from "../react-obr/providers";
-import { useSettings } from "../components/SettingsProvider";
+import { useOBRBroadcast } from "../hooks/obr";
 import { useTracks } from "../components/TrackProvider";
 
-type Screen = "track-list" | "player" | "export" | "scene" | "settings";
+interface TabPanelProps {
+    children?: React.ReactNode;
+    index: number;
+    value: number;
+}
 
-function Navbar({ selectedScreen, setSelectedScreen }: { selectedScreen: Screen, setSelectedScreen: (screen: Screen) => void }) {
-    return <div className="navbar">
+function TabPanel(props: TabPanelProps) {
+    const { children, value, index, ...other } = props;
+
+    return (
         <div
-            className={`navbar-icon ${selectedScreen === "track-list" ? "navbar-selected" : ""}`}
-            title="Track List"
-            onClick={() => setSelectedScreen("track-list")}
+            role="tabpanel"
+            hidden={value !== index}
+            {...other}
         >
-            <FontAwesomeIcon icon={faList} />
+            {value === index && <>{children}</>}
         </div>
-        <div
-            className={`navbar-icon ${selectedScreen === "player" ? "navbar-selected" : ""}`}
-            title="Audio Player"
-            onClick={() => setSelectedScreen("player")}
-        >
-            <FontAwesomeIcon icon={faMusic} />
-        </div>
-        <div
-            className={`navbar-icon ${selectedScreen === "scene" ? "navbar-selected" : ""}`}
-            title="Scene Configuration"
-            onClick={() => setSelectedScreen("scene")}
-        >
-            <FontAwesomeIcon icon={faImage} />
-        </div>
-        <div
-            className={`navbar-icon ${selectedScreen === "export" ? "navbar-selected" : ""}`}
-            title="Export/Import"
-            onClick={() => setSelectedScreen("export")}
-        >
-            <FontAwesomeIcon icon={faUpload} />
-        </div>
-        <div
-            className={`navbar-icon ${selectedScreen === "settings" ? "navbar-selected" : ""}`}
-            title="Global Settings"
-            onClick={() => setSelectedScreen("settings")}
-        >
-            <FontAwesomeIcon icon={faGear} />
-        </div>
-    </div>;
+    );
 }
 
 export function GMView() {
-    const { sendMessage, registerMessageHandler } = useOBRMessaging();
+    const { sendMessage, registerMessageHandler } = useOBRBroadcast<MessageContent>();
     const { playing, setIsPlaying, setTrack, setRepeatMode, setShuffle, setVolume } = useAudioPlayer();
-    const { addTrack, reload: reloadTracks, tracks, } = useTracks();
-    const { reload: reloadSettings } = useSettings();
-    const playingPlaylists = useMemo(() => Object.keys(playing), [playing]);
-    const memoizedPlayingPlaylists = useArrayCompareMemoize(playingPlaylists);
-
-    const [ selectedScreen, setSelectedScreen ] = useState<Screen>("track-list");
-    const [ isPoppedOut, setPoppedOut ] = useState(false);
-    const popup = useRef<Window|null>(null);
-
-    const openPopup = () => {
-        OBR.action.getHeight().then(height => {
-            popup.current = window.open(
-                `${document.location.origin}/popup${document.location.search}`,
-                `${APP_KEY}/popup`,
-                "popup,width=500,height=600"
-            );
-            setPoppedOut(true);
-            OBR.action.setHeight(50);
-            OBR.action.close();
-            const popupInterval = setInterval(() => {
-                if (popup.current?.closed) {
-                    clearInterval(popupInterval);
-                    popup.current = null;
-                    setPoppedOut(false);
-                    OBR.action.setHeight(height ?? 500);
-                    OBR.action.open();
-                    reloadTracks();
-                    reloadSettings();
-                }
-            }, 250);
-        });
-    }
+    const { addTrack, tracks, } = useTracks();
+    const [selectedTab, setTab] = useState(0);
 
     useEffect(() => {
-        if (isPoppedOut) return;
-
-        return registerMessageHandler(message => {
-            const messageContent = message.message as MessageContent;
-            if (messageContent.type === "get-playlists") {
-                sendMessage({ type: "playlists", payload: Object.keys(playing) }, [message.sender]);
+        return registerMessageHandler(`${APP_KEY}/internal`, (message, sender) => {
+            if (message.type === "get-playlists") {
+                sendMessage(`${APP_KEY}/internal`, { type: "playlists", payload: Object.keys(playing) }, [sender]);
             }
-            else if (messageContent.type === "get-track") {
-                const playlist = messageContent.payload;
+            else if (message.type === "get-track") {
+                const playlist = message.payload;
                 const track = playing[playlist];
                 if (track !== undefined) {
                     sendMessage(
+                        `${APP_KEY}/internal`,
                         {
                             type: "track", 
                             payload:  {
@@ -118,25 +60,22 @@ export function GMView() {
                                 playing: track.playing
                             }
                         },
-                        [message.sender]
+                        [sender]
                     );
                 }
             }
-            else if (messageContent.type === "add-track") {
-                const track = messageContent.payload;
+            else if (message.type === "add-track") {
+                const track = message.payload;
                 addTrack(track);
             }
         });
-    }, [playing, addTrack, registerMessageHandler, sendMessage, isPoppedOut]);
+    }, [playing, addTrack, registerMessageHandler, sendMessage]);
 
     useEffect(() => {
-        if (isPoppedOut) return;
-
-        return registerMessageHandler(message => {
+        return registerMessageHandler(`${APP_KEY}/external`, message => {
             // Allow other extensions to talk to hoot
-            const messageContent = message.message as MessageContent;
-            if (messageContent.type === "play") {
-                const payload = messageContent.payload;
+            if (message.type === "play") {
+                const payload = message.payload;
                 const playlist = payload.playlist;
                 const trackName = payload.track;
                 const trackId = Array.from(tracks.entries()).map(o => o[1]).flat().find(t => t.name === trackName)?.id;
@@ -163,46 +102,32 @@ export function GMView() {
                 setIsPlaying(true, playlist);
             }
         });
-    }, [isPoppedOut, registerMessageHandler, setIsPlaying, setTrack, tracks, setShuffle, setRepeatMode, setVolume, playing]);
-
-    useEffect(() => {
-        if (isPoppedOut) return;
-        sendMessage({ type: "playlists", payload: memoizedPlayingPlaylists });
-    }, [memoizedPlayingPlaylists, sendMessage, isPoppedOut]);
-
-    if (isPoppedOut) {
-        return <div className="inactive-window">
-            <p>
-            Hoot is running in another window.
-            </p>
-        </div>;
-    }
+    }, [registerMessageHandler, setIsPlaying, setTrack, tracks, setShuffle, setRepeatMode, setVolume, playing]);
     
-    return <>
-        <Navbar selectedScreen={selectedScreen} setSelectedScreen={setSelectedScreen} />
-        {
-            document.location.pathname !== "/popup" &&
-            <div 
-                className="popout clickable"
-                onClick={openPopup}
-            >
-                <FontAwesomeIcon icon={faUpRightFromSquare} />
-            </div>
-        }
-        <div className="body" style={{ display: selectedScreen === "track-list" ? undefined : "none"}}>
+    return <Box sx={{ padding: 0, height: "100vh", overflow: "hidden" }}>
+        <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
+            <Tabs value={selectedTab} onChange={(_, tab) => setTab(tab)} centered>
+                <Tab label="Tracks" />
+                <Tab label="Player" />
+                <Tab label="Scene" />
+                <Tab label="Export" />
+                <Tab label="Settings" />
+            </Tabs>
+        </Box>
+        <TabPanel value={selectedTab} index={0}>
             <TrackListView />
-        </div>
-        <div className="body" style={{ display: selectedScreen === "player" ? undefined : "none"}}>
+        </TabPanel> 
+        <TabPanel value={selectedTab} index={1}>
             <AudioPlayerView />
-        </div>
-        <div className="body" style={{ display: selectedScreen === "scene" ? undefined : "none"}}>
+        </TabPanel> 
+        <TabPanel value={selectedTab} index={2}>
             <SceneView />
-        </div>
-        <div className="body" style={{ display: selectedScreen === "export" ? undefined : "none"}}>
+        </TabPanel> 
+        <TabPanel value={selectedTab} index={3}>
             <ExportView />
-        </div>
-        <div className="body" style={{ display: selectedScreen === "settings" ? undefined : "none"}}>
+        </TabPanel> 
+        <TabPanel value={selectedTab} index={4}>
             <SettingsView />
-        </div>
-    </>
+        </TabPanel> 
+    </Box>;
 }

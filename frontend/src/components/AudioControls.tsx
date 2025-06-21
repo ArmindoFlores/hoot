@@ -1,18 +1,18 @@
+import { Box, Card, CircularProgress, IconButton, Slider, Typography } from "@mui/material";
 import { Track, useTracks } from "./TrackProvider";
 import { faBackward, faCircleExclamation, faClose, faForward, faPause, faPlay, faRepeat, faShuffle, faVolumeHigh, faVolumeLow, faVolumeOff } from "@fortawesome/free-solid-svg-icons";
 import { fadeInVolume, fadeOutVolume } from "../utils";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { APP_KEY } from "../config";
 import FadeIn from "../assets/fadein.svg";
 import FadeOut from "../assets/fadeout.svg";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { MessageContent } from "../types/messages";
 import OBR from "@owlbear-rodeo/sdk";
-import { Oval } from "react-loader-spinner";
-import ReactSlider from "react-slider";
 import RepeatSelf from "../assets/repeat-self.svg";
 import { useAudioPlayer } from "./AudioPlayerProvider";
-import { useOBRMessaging } from "../react-obr/providers";
+import { useOBRBroadcast } from "../hooks/obr";
 import { useSettings } from "./SettingsProvider";
 import { useThrottled } from "../hooks";
 
@@ -81,7 +81,7 @@ export function AudioControls(props: AudioControlsProps) {
     } = useAudioPlayer();
     const { fadeTime } = useSettings();
     const { tracks } = useTracks();
-    const { sendMessage, registerMessageHandler } = useOBRMessaging();
+    const { sendMessage, registerMessageHandler } = useOBRBroadcast<MessageContent>();
 
     const current = useMemo(() => playing[props.playlist], [playing, props.playlist]);
     const audioRef = useRef<HTMLAudioElement>(null);
@@ -159,7 +159,7 @@ export function AudioControls(props: AudioControlsProps) {
         }
         
         audio.volume = 0;
-        sendMessage({ type: "fade", payload: { playlist: props.playlist, fade: "in", duration: fadeTime }});
+        sendMessage(`${APP_KEY}/internal`, { type: "fade", payload: { playlist: props.playlist, fade: "in", duration: fadeTime }});
         setIsPlaying(true, props.playlist);
 
         const targetVolume = current.volume;
@@ -184,7 +184,7 @@ export function AudioControls(props: AudioControlsProps) {
         if (fading || !current.playing || current.volume <= 0 || audio == undefined) return;
         
         setFading(true);
-        sendMessage({ type: "fade", payload: { playlist: props.playlist, fade: "out", duration: fadeTime } });
+        sendMessage(`${APP_KEY}/internal`, { type: "fade", payload: { playlist: props.playlist, fade: "out", duration: fadeTime } });
 
         const initialVolume = current.volume;
         const interval = 50;
@@ -208,17 +208,20 @@ export function AudioControls(props: AudioControlsProps) {
     useEffect(() => {
         if (scheduledUpdate) {
             setScheduledUpdate(false);
-            throttledSend({
-                type: "track",
-                payload:  {
-                    playlist: props.playlist,
-                    name: current.track.name,
-                    source: current.track.source,
-                    time: current.time,
-                    volume: current.volume,
-                    playing: current.playing,
+            throttledSend(
+                `${APP_KEY}/internal`,
+                {
+                    type: "track",
+                    payload:  {
+                        playlist: props.playlist,
+                        name: current.track.name,
+                        source: current.track.source,
+                        time: current.time,
+                        volume: current.volume,
+                        playing: current.playing,
+                    }
                 }
-            });
+            );
         }
     }, [scheduledUpdate, throttledSend, current, props.playlist]);
 
@@ -297,10 +300,9 @@ export function AudioControls(props: AudioControlsProps) {
     }, [loaded, props.playlist, setDuration, setPlaybackTime]);
 
     useEffect(() => {
-        return registerMessageHandler(message => {
-            const messageContent = message.message as MessageContent;
-            if (messageContent.type === "fade") {
-                const payload = messageContent.payload;
+        return registerMessageHandler(`${APP_KEY}/internal`, message => {
+            if (message.type === "fade") {
+                const payload = message.payload;
                 if (payload.playlist !== props.playlist) return;
                 
                 if (payload.fade === "in") {
@@ -313,134 +315,129 @@ export function AudioControls(props: AudioControlsProps) {
         });
     }, [fading, current.playing, current.volume, fadeTime, registerMessageHandler, props.playlist, handleFadeIn, handleFadeOut]);
     
-    return <div className="track-player-container">
+    return <Card sx={{ p: 1, mb: 1, position: "relative" }}>
         <audio
             src={current.track?.source}
             ref={audioRef}
             onError={handleAudioError}
             onCanPlayThrough={handleAudioLoaded}
         />
-        <div className="volume-widget">
-            <ReactSlider
-                className="volume-slider"
-                thumbClassName="volume-slider-thumb"
-                trackClassName="volume-slider-track"
-                min={0}
-                max={100}
-                value={(current.volume ?? 0) * 100}
-                onChange={value => setVolume(value / 100, props.playlist)}
-                orientation="vertical"
-                disabled={fading}
-                invert
-            />
-            <FontAwesomeIcon 
-                icon={
-                    current.volume == 0 
-                    ? faVolumeOff 
-                    : (current.volume < 0.5)
-                    ? faVolumeLow
-                    : faVolumeHigh
-                } 
-                style={{width: "1rem"}}
-                className={fading ? "disabled" : undefined}
-            />
-        </div>
-        <div className="track-control-widgets">
-            <p className="track-control-display">
-                <span style={{fontWeight: "bold"}}>{ props.playlist }:</span> { current.track?.name }
-            </p>
-            <div className="track-progressbar-container">
-                <p className="text-small unselectable">{formatTime(current.time)}</p>
-                <div style={{padding: "0 0.5rem", flex: 1}}>
-                    <ReactSlider
-                        className="progressbar"
-                        thumbClassName="progressbar-thumb"
-                        trackClassName="progressbar-track"
-                        orientation="horizontal"
-                        min={0}
-                        max={500}
-                        value={current.duration ? (current.time / current.duration * 500) : 0}
-                        onChange={value => setAudioTime(value / 500 * current.duration!)}
-                        disabled={!loaded}
-                    />
-                </div>
-                <p className="text-small unselectable">{formatTime(current.duration ?? 0)}</p>
-            </div>
-            <div className="track-bottom-widgets-container">
-                <div className="track-playback-controls-container">
-                    <img 
-                        src={FadeIn}
-                        className={`playback-control ${(fading || current.playing || !loaded) ? "disabled" : "clickable"} unselectable`}
-                        onClick={handleFadeIn}
-                    />
-                    <FontAwesomeIcon
-                        icon={faBackward}
-                        className={`playback-control ${fading ? "disabled" : "clickable"}`}
-                        onClick={() => changeTrack(-1)}
-                    />
-                    <FontAwesomeIcon 
-                        icon={current.playing ? faPause : faPlay} 
-                        className={`play-button ${(fading || !loaded) ? "disabled" : "clickable"}`}
-                        onClick={fading ? undefined : () => setIsPlaying(!current.playing, props.playlist)}
-                    />
-                    <FontAwesomeIcon
-                        icon={faForward}
-                        className={`playback-control ${fading ? "disabled" : "clickable"}`}
-                        onClick={() => changeTrack(+1)}
-                    />
-                    <img
-                        src={FadeOut}
-                        className={`playback-control ${(fading || !current.playing || !loaded) ? "disabled" : "clickable"} unselectable`}
-                        onClick={handleFadeOut}
-                    />
-                </div>
-                <div className="track-playmode-controls-container">
-                    <div className="playmode-control">
-                        <div 
-                            className={`playmode-control-button clickable ${current.repeatMode !== "no-repeat" ? "highlighted" : ""}`}
-                            onClick={() => nextRepeatMode()}
+        <Box sx={{ display: "flex", flexDirection: "row", gap: 1 }}>
+            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+                <Slider
+                    min={0}
+                    max={100}
+                    value={(current.volume ?? 0) * 100}
+                    onChange={(_, value) => setVolume(value as number / 100, props.playlist)}
+                    orientation="vertical"
+                    disabled={fading}
+                />
+                <FontAwesomeIcon 
+                    icon={
+                        current.volume == 0 
+                        ? faVolumeOff 
+                        : (current.volume < 0.5)
+                        ? faVolumeLow
+                        : faVolumeHigh
+                    } 
+                    style={{width: "1rem"}}
+                    className={fading ? "disabled" : undefined}
+                />
+            </Box>
+            <Box sx={{ display: "flex", flexDirection: "column", flex: 1}}>
+                <Typography>
+                    <Box component="span" fontWeight="bold">{ props.playlist }:</Box> { current.track?.name }
+                </Typography>
+                <Box sx={{ display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 2}}>
+                    <Typography sx={{ userSelect: "none" }}>{formatTime(current.time)}</Typography>
+                        <Slider
+                            orientation="horizontal"
+                            size="small"
+                            min={0}
+                            max={500}
+                            value={current.duration ? (current.time / current.duration * 500) : 0}
+                            onChange={(_, value) => setAudioTime(value as number / 500 * current.duration!)}
+                            disabled={!loaded}
+                        />
+                    <Typography sx={{ userSelect: "none" }}>{formatTime(current.duration ?? 0)}</Typography>
+                </Box>
+                <Box sx={{ display: "flex", flexDirection: "row", gap: 1, justifyContent: "space-between", alignItems: "center"}}>
+                    <Box sx={{ display: "flex", flexDirection: "row", gap: 0.5}}>
+                        <IconButton
+                            onClick={handleFadeIn}
+                            disabled={fading || current.playing || !loaded}
                         >
+                            <Box
+                                component="img"
+                                sx={{ userSelect: "none" }}
+                                src={FadeIn}
+                            />
+                        </IconButton>
+                        <IconButton
+                            onClick={() => changeTrack(-1)}
+                            disabled={fading}
+                        >
+                            <FontAwesomeIcon
+                                icon={faBackward}
+                            />
+                        </IconButton>
+                        <IconButton
+                            onClick={fading ? undefined : () => setIsPlaying(!current.playing, props.playlist)}
+                            disabled={fading || !loaded}
+                        >
+                            <FontAwesomeIcon icon={current.playing ? faPause : faPlay} />
+                        </IconButton>
+                        <IconButton
+                            onClick={() => changeTrack(+1)}
+                            disabled={fading}
+                        >
+                            <FontAwesomeIcon icon={faForward} />
+                        </IconButton>
+                        <IconButton
+                            onClick={handleFadeOut}
+                            disabled={fading || !current.playing || !loaded}    
+                        >
+                            <Box
+                                component="img"
+                                sx={{ userSelect: "none" }}
+                                src={FadeOut}
+                            />
+                        </IconButton>
+                    </Box>
+                    <Box sx={{ display: "flex", flexDirection: "row", gap: 4, mr: 5 }}>
+                        <IconButton size="small" onClick={() => nextRepeatMode()} sx={{ opacity: current.repeatMode === "no-repeat" ? 0.5 : 1 }}>
                             {
                                 current.repeatMode === "repeat-self" ? 
-                                <img src={RepeatSelf} style={{width: "1.1rem"}} className="unselectable" />
+                                <Box component="img" src={RepeatSelf} style={{width: "1.1rem", userSelect: "none" }} />
                                 : <FontAwesomeIcon icon={faRepeat} />
                             }
-                        </div>
-                    </div>
-                    <div className="playmode-control">
-                        <div 
-                            className={`playmode-control-button clickable ${current.shuffle ? "highlighted" : ""}`}
-                            onClick={() => setShuffle(!current.shuffle, props.playlist)}
-                        >
+                        </IconButton>
+                        <IconButton size="small" onClick={() => setShuffle(!current.shuffle, props.playlist)} sx={{ opacity: current.shuffle ? 1 : 0.5 }}>
                             <FontAwesomeIcon icon={faShuffle} />
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div 
-            className="close-button-container clickable" 
+                        </IconButton>
+                    </Box>
+                </Box>
+            </Box>
+        </Box>
+        <IconButton 
+            sx={{ position: "absolute", top: 5, right: 5 }}
+            size="small"
             onClick={() => setCurrentTrack(undefined)}
         >
             <FontAwesomeIcon icon={faClose} />
-        </div>
-        {
-            (!loaded && !errored) ?
-            <Oval
-                height="16"
-                width="16"
-                color="var(--OBR-Purple-Select)"
-                secondaryColor="var(--OBR-Purple-Select-transparent)"
-                strokeWidth="10"
-                wrapperClass="loading-spinner"
-            />
-            :
-            errored && <FontAwesomeIcon 
-                icon={faCircleExclamation}
-                className="error-indicator clickable" 
-                title={errorMessage}
-                onClick={() => { setErrored(false); audioRef.current?.load?.(); } }
-            />
-        }
-    </div>;
+        </IconButton>
+        <Box sx={{ position: "absolute", bottom: 2, right: 10 }}>
+            {
+                (!loaded && !errored) ?
+                <CircularProgress size="1rem" />
+                :
+                errored && <FontAwesomeIcon 
+                    color="red"
+                    icon={faCircleExclamation}
+                    title={errorMessage}
+                    onClick={() => { setErrored(false); audioRef.current?.load?.(); } }
+                />
+            }
+        </Box>
+    </Card>;
 }

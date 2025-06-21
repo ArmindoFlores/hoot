@@ -1,16 +1,12 @@
-import "./Hoot.css";
-
-import { BaseOBRProvider, useOBR } from "./react-obr/providers/BaseOBRProvider";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { useOBRBase, useOBRSelf } from "./hooks";
 
-import { APP_KEY } from "./config";
 import { AddTrackView } from "./views/AddTrackView";
 import { AudioPlayerProvider } from "./components/AudioPlayerProvider";
 import { AuthProvider } from "./components/AuthProvider";
 import { GMView } from "./views/GMView";
 import { ImportLocalTracksModal } from "./views/ImportLocalTracksView";
-import Modal from "react-modal";
-import { OBRMessageProvider } from "./react-obr/providers";
+import { OBRThemeProvider } from "./providers/OBRThemeProvider";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { PlayerView } from "./views/PlayerView";
 import { PrivacyPolicyView } from "./views/PrivacyPolicyView";
@@ -19,6 +15,7 @@ import { SettingsProvider } from "./components/SettingsProvider";
 import { SignUpView } from "./views/SignUpView";
 import { TermsOfServiceView } from "./views/TermsOfServiceView";
 import { TrackProvider } from "./components/TrackProvider";
+import { Typography } from "@mui/material";
 import { VerifyEmailView } from "./views/VerifyEmailView";
 import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
 
@@ -34,42 +31,38 @@ const persister = createSyncStoragePersister({
     storage: window.localStorage,
 });
 
-function withOBRProvider(element: JSX.Element, proxy: boolean): JSX.Element {
-    return <BaseOBRProvider proxy={proxy}>
-        <OBRMessageProvider appKey={APP_KEY} proxy={proxy}>
-            { element } 
-        </OBRMessageProvider>
-    </BaseOBRProvider>;
-}
+function OBRRoute({ children }: { children: React.ReactNode }): React.ReactNode {
+    const { ready } = useOBRBase();
 
-function PopupMainApp() {
-    return <div className="popup-container">
-        <div className="popup-container-inner">
-            <MainApp proxy={true} />
-        </div>
-    </div>;
+    if (!ready) {
+        return null;
+    }
+
+    return <OBRThemeProvider>
+        { children } 
+    </OBRThemeProvider>;
 }
 
 function MainApp({ proxy = false }: { proxy?: boolean }) {
-    const { player } = useOBR();
+    const player = useOBRSelf();
 
     if (player == null) {
-        return <p>Could not load Owlbear Extension.</p>;
+        return <Typography>Could not load Owlbear Extension.</Typography>;
     }
     if (player.role == "GM") { 
         return <PersistQueryClientProvider
             client={queryClient}
             persistOptions={{ persister }}
         >
-            <AuthProvider proxy={proxy}>
-                <TrackProvider proxy={proxy}>
-                    <SettingsProvider proxy={proxy}>
-                        <AudioPlayerProvider>
-                            <GMView />
-                        </AudioPlayerProvider>
-                    </SettingsProvider>
-                </TrackProvider>
-            </AuthProvider>
+                <AuthProvider proxy={proxy}>
+                    <TrackProvider proxy={proxy}>
+                        <SettingsProvider proxy={proxy}>
+                            <AudioPlayerProvider>
+                                <GMView />
+                            </AudioPlayerProvider>
+                        </SettingsProvider>
+                    </TrackProvider>
+                </AuthProvider>
         </PersistQueryClientProvider>;
     }
     else {
@@ -78,6 +71,13 @@ function MainApp({ proxy = false }: { proxy?: boolean }) {
 }
 
 function AddTrackModal() {
+    const { ready } = useOBRBase();
+    const player = useOBRSelf();
+
+    if (!ready || player == null) {
+        return;
+    }
+
     return <PersistQueryClientProvider
         client={queryClient}
         persistOptions={{ persister }}
@@ -90,15 +90,12 @@ function AddTrackModal() {
     </PersistQueryClientProvider>;
 }
 
-Modal.setAppElement("#root");
-
 export default function Hoot() {
     return <BrowserRouter>
         <Routes>
-            <Route path="/" element={withOBRProvider(<MainApp />, false)} />
-            <Route path="/add-track" element={withOBRProvider(<AddTrackModal />, false)} />
-            <Route path="/import-local-tracks" element={withOBRProvider(<ImportLocalTracksModal />, false)} />
-            <Route path="/popup" element={withOBRProvider(<PopupMainApp />, true)} />
+            <Route path="/" element={<OBRRoute><MainApp /></OBRRoute>} />
+            <Route path="/add-track" element={<OBRRoute><AddTrackModal /></OBRRoute>} />
+            <Route path="/import-local-tracks" element={<OBRRoute><ImportLocalTracksModal /></OBRRoute>} />
             <Route path="/signup" element={<SignUpView />} />
             <Route path="/verify/:verificationCode" element={<VerifyEmailView />} />
             <Route path="/tos" element={<TermsOfServiceView />} />

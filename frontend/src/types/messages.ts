@@ -21,7 +21,6 @@ export type MessageContent = {
     payload: string;
 } | {
     type: "get-playlists";
-    payload: never;
 } | {
     type: "track";
     payload: SimpleTrack;

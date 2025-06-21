@@ -1,8 +1,8 @@
+import { ArrowRight, Delete, VolumeUp } from "@mui/icons-material";
+import { Box, Card, Collapse, IconButton, Input, Typography } from "@mui/material";
 import { Track, useTracks } from "../components/TrackProvider";
-import { faCaretRight, faTrash, faVolumeHigh } from "@fortawesome/free-solid-svg-icons";
 import { useCallback, useMemo, useState } from "react";
 
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useAudioPlayer } from "../components/AudioPlayerProvider";
 
 export function TrackListView() {
@@ -58,62 +58,58 @@ export function TrackListView() {
         setTrack(track, playlist);
     }, [setTrack]);
 
-    return <div className="track-list">
-        <input 
+    return <Box sx={{ p: 2, overflow: "auto", height: "calc(100vh - 50px)" }}>
+        <Input 
             className="track-search"
             placeholder="Enter a track name or a #playlist" 
             value={search}
             onChange={event => setSearch(event.target.value)}
+            sx={{ width: "100%" }}
         />
-        <div className="track-display">
-            <div className="track-display-inner">
-                {
-                    playlists.filter(playlist => playlistMatchesSearch(playlist)).map(playlist =>  {
-                        const expanded = expandedPlaylists.includes(playlist);
-                        return (
-                            <div key={playlist} className="playlist-item">
-                                <div className="playlist-title" onClick={() => toggleExpanded(playlist)}>
-                                    <FontAwesomeIcon className={"caret " + (expanded ? "rotated" : "")} icon={faCaretRight} />
-                                    <p className="playlist-name">{ playlist }</p>
-                                    {
-                                        playingPlaylists.includes(playlist) &&
-                                        <FontAwesomeIcon icon={faVolumeHigh} />
-                                    }
-                                </div>
-                                <div className={"playlist-body " + (expanded ? "visible" : "invisible")}>
-                                    {
-                                        expanded &&
-                                        tracks.get(playlist)!.filter(track => trackMatchesSearch(track)).map((track, index) => 
-                                            <div
-                                                key={index} 
-                                                className="track-info"
-                                                onMouseEnter={() => setHoveredTrack(track)}
-                                                onMouseLeave={() => setHoveredTrack(oldTrack => oldTrack === track ? undefined : oldTrack)}
-                                            >
-                                                <FontAwesomeIcon 
-                                                    icon={faVolumeHigh} 
-                                                    style={{
-                                                        paddingRight: "0.5rem", 
-                                                        opacity: isPlayingTrack(track, playlist) ? 1 : 0
-                                                    }} 
-                                                />
-                                                <div className="track-info-right">
-                                                    <p onClick={() => playTrack(track, playlist)}>{ track.name }</p>
-                                                    <FontAwesomeIcon 
-                                                        icon={faTrash} 
-                                                        onClick={() => removeTrack(track.name, playlist)} 
-                                                        style={{ opacity: hoveredTrack === track ? 1 : 0 }}
-                                                    />
-                                                </div>
-                                            </div>
-                                        )
-                                    }
-                                </div>
-                            </div>
-                        );
-                    })
-                }
-            </div>
-        </div>
-    </div>;
+        <Box sx={{ p: 1 }} />
+        <Box>
+            {
+                playlists.filter(playlist => playlistMatchesSearch(playlist)).map(playlist =>  {
+                    const expanded = expandedPlaylists.includes(playlist);
+                    return (
+                        <Card key={playlist} variant="elevation" sx={{ p: 1, mb: 1 }}>
+                            <Box onClick={() => toggleExpanded(playlist)} sx={{ display: "flex", flexDirection: "row", gap: 1, cursor: "pointer" }}>
+                                <ArrowRight />
+                                <Typography fontWeight="bold">{ playlist }</Typography>
+                                {
+                                    playingPlaylists.includes(playlist) &&
+                                    <VolumeUp />
+                                }
+                            </Box>
+                            <Collapse in={expanded}>
+                                {
+                                    tracks.get(playlist)!.filter(track => trackMatchesSearch(track)).map((track, index) => 
+                                        <Box
+                                            key={index}
+                                            onMouseEnter={() => setHoveredTrack(track)}
+                                            onMouseLeave={() => setHoveredTrack(oldTrack => oldTrack === track ? undefined : oldTrack)}
+                                            sx={{ display: "flex", flexDirection: "row", gap: 1, alignItems: "center" }}
+                                        >
+                                            <VolumeUp 
+                                                sx={{
+                                                    paddingRight: "0.5rem", 
+                                                    opacity: isPlayingTrack(track, playlist) ? 1 : 0
+                                                }} 
+                                            />
+                                            <Box sx={{ display: "flex", flex: 1, flexDirection: "row", gap: 1, cursor: "pointer", alignItems: "center", justifyContent: "space-between" }}>
+                                                <Typography onClick={() => playTrack(track, playlist)}>{ track.name }</Typography>
+                                                <IconButton disabled={hoveredTrack !== track} onClick={() => removeTrack(track.name, playlist)} sx={{ opacity: hoveredTrack === track ? 1 : 0 }}>
+                                                    <Delete />
+                                                </IconButton> 
+                                            </Box>
+                                        </Box>
+                                    )
+                                }
+                            </Collapse>
+                        </Card>
+                    );
+                })
+            }
+        </Box>
+    </Box>;
 }

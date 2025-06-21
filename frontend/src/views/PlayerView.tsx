@@ -1,13 +1,14 @@
+import { Box, Button, Collapse, IconButton, Slider, Typography } from "@mui/material";
 import { FadeObject, MessageContent } from "../types/messages";
 import { PlayerSettingsProvider, usePlayerSettings } from "../components/PlayerSettingsProvider";
 import { faVolumeHigh, faVolumeLow, faVolumeMute, faVolumeOff } from "@fortawesome/free-solid-svg-icons";
 import { fadeInVolume, fadeOutVolume } from "../utils";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useOBR, useOBRMessaging } from "../react-obr/providers";
+import { useOBRBroadcast, useOBRPlayers } from "../hooks/obr";
 
+import { APP_KEY } from "../config";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import OBR from "@owlbear-rodeo/sdk";
-import ReactSlider from "react-slider";
 import { SimpleTrack } from "../types/tracks";
 
 type TrackWithDuration = SimpleTrack & { duration?: number };
@@ -26,7 +27,7 @@ function PlayerAudioIndicator({
     autoplayError,
     triggerPlayback
 }: PlayerAudioIndicatorProps) {
-    const { registerMessageHandler } = useOBRMessaging();
+    const { registerMessageHandler } = useOBRBroadcast<MessageContent>();
     const { playlistVolume, setPlaylistVolume } = usePlayerSettings();
     const audioRef = useRef<HTMLAudioElement>(null);
     
@@ -123,10 +124,9 @@ function PlayerAudioIndicator({
     }, [trackWithDuration?.name, trackWithDuration?.source]);
 
     useEffect(() => {
-        return registerMessageHandler(message => {
-            const messageContent = message.message as MessageContent;
-            if (messageContent.type === "fade") {
-                const fadeObject = messageContent.payload;
+        return registerMessageHandler(`${APP_KEY}/internal`, message => {
+            if (message.type === "fade") {
+                const fadeObject = message.payload;
                 if (fadeObject.playlist !== playlist) return;
                 setFade(fadeObject);
             }
@@ -197,14 +197,11 @@ function PlayerAudioIndicator({
             <div style={{ display: "flex", flexDirection: "row", alignItems: "center" }}>
                 <FontAwesomeIcon icon={faVolumeHigh} style={{opacity: trackWithDuration?.playing ? 1 : 0, paddingRight: "1rem"}} />
                 <div className="horizontal-volume-slider-container">
-                    <ReactSlider
-                        className="horizontal-volume-slider"
-                        thumbClassName={`volume-slider-thumb`}
-                        trackClassName={`horizontal-volume-slider-track`}
+                    <Slider
                         min={0}
                         max={100}
                         value={playlistVolume * 100}
-                        onChange={value => setPlaylistVolume(value / 100)}
+                        onChange={(_, value) => setPlaylistVolume(value as number / 100)}
                         orientation="horizontal"
                     />
                 </div>
@@ -213,10 +210,7 @@ function PlayerAudioIndicator({
         <div className="progressbar-container">
             {
                 trackWithDuration && 
-                <ReactSlider
-                    className="progressbar"
-                    thumbClassName="progressbar-thumb"
-                    trackClassName="progressbar-track"
+                <Slider
                     orientation="horizontal"
                     min={0}
                     max={500}
@@ -229,8 +223,8 @@ function PlayerAudioIndicator({
 }
 
 export function PlayerView() {
-    const { registerMessageHandler, sendMessage } = useOBRMessaging();
-    const { party } = useOBR();
+    const { registerMessageHandler, sendMessage } = useOBRBroadcast<MessageContent>();
+    const party = useOBRPlayers();
 
     const [ playlists, setPlaylists ] = useState<string[]>([]);
     const [ tracks, setTracks ] = useState<Record<string, TrackWithDuration>>({});
@@ -255,7 +249,7 @@ export function PlayerView() {
     }
 
     const restartPlayback = () => { 
-        sendMessage({ type: "get-playlists" }, GMIDs);
+        sendMessage(`${APP_KEY}/internal`, { type: "get-playlists" }, GMIDs);
         setAutoplayErrorOccurred(false); 
         setTriggerPlayback(old => !old); 
     }
@@ -267,10 +261,9 @@ export function PlayerView() {
     }, [volume]);
 
     useEffect(() => {
-        return registerMessageHandler(message => {
-            const messageContent = message.message as MessageContent;
-            if (messageContent.type === "track") {
-                const track = messageContent.payload as SimpleTrack;
+        return registerMessageHandler(`${APP_KEY}/internal`, message => {
+            if (message.type === "track") {
+                const track = message.payload as SimpleTrack;
                 setTracks(oldTracks => {
                     const prev = oldTracks[track.playlist];
                     if (prev && prev.name === track.name && prev.source == track.source) {
@@ -279,20 +272,20 @@ export function PlayerView() {
                     return {...oldTracks, [track.playlist]: track }
                 });
             }
-            else if (messageContent.type === "playlists") {
-                const newPlaylists = messageContent.payload as string[];
+            else if (message.type === "playlists") {
+                const newPlaylists = message.payload as string[];
                 for (const playlist of newPlaylists) {
                     if (!playlists.includes(playlist)) {
-                        sendMessage({ type: "get-track", payload: playlist }, GMIDs);
+                        sendMessage(`${APP_KEY}/internal`, { type: "get-track", payload: playlist }, GMIDs);
                     }
                 }
                 setPlaylists(newPlaylists);
             }
-            else if (messageContent.type === "fade") {
+            else if (message.type === "fade") {
                 // Handled by children
             }
             else {
-                console.error(`Received invalid message of type '${messageContent.type}':`, messageContent.payload);
+                console.error(`Received invalid message of type '${message.type}':`, message);
             }
         });
     }, [GMIDs, playlists, sendMessage, registerMessageHandler]);
@@ -304,28 +297,28 @@ export function PlayerView() {
                 return;
             }
             const GMIDs = GMs.map(gm => gm.id);
-            sendMessage({ type: "get-playlists" }, GMIDs);
+            sendMessage(`${APP_KEY}/internal`, { type: "get-playlists" }, GMIDs);
             setSetup(true);
             setGMIDs(GMIDs);
         }
     }, [party, setup, sendMessage]);
 
-    return <div className="player-view">
-        <div className="player-view-title">
-            <h2>Currently Playing</h2>
+    return <Box sx={{ p: 2 }}>
+        <Box>
+            <Typography variant="h5">Currently Playing</Typography>
             {
                 autoplayErrorOccurred &&
-                <button onClick={restartPlayback}>
+                <Button variant="outlined" onClick={restartPlayback}>
                     Restart Playback
-                </button>
+                </Button>
             }
-        </div>
-        <div className="player-track-display">
+        </Box>
+        <Box>
             {
                 playlists.length === 0 &&
-                <p>
+                <Typography>
                     No tracks are playing. 
-                </p>
+                </Typography>
             }
             {
                 playlists.map(playlist => (
@@ -340,23 +333,30 @@ export function PlayerView() {
                     </PlayerSettingsProvider>
                 ))
             }
-        </div>
-        <div className="global-volume" onMouseEnter={() => setVolumeHovered(true)}onMouseLeave={() => setVolumeHovered(false)}>
-            <div className={`global-volume-slider-container ${volumeHovered ? "global-volume-shown" : ""}`}>
-                <ReactSlider
-                    className="volume-slider"
-                    thumbClassName={`volume-slider-thumb`}
-                    trackClassName={`volume-slider-track`}
-                    min={0}
-                    max={100}
-                    value={(volume ?? 0) * 100}
-                    onChange={value => setVolume(value / 100)}
-                    orientation="vertical"
-                    invert
-                />
-            </div>
-            <div 
-                className="global-volume-icon-container clickable"
+        </Box>
+        <Box
+            onMouseEnter={() => setVolumeHovered(true)}
+            onMouseLeave={() => setVolumeHovered(false)}
+            sx={{
+                position: "absolute",
+                bottom: "0.5rem",
+                right: "1rem",
+                background: (theme) => theme.palette.background.default,
+                borderRadius: 5,
+            }}
+        >
+            <Collapse in={volumeHovered}>
+                <Box sx={{ height: "7rem", pb: 1, pt: 2 }}>
+                    <Slider
+                        min={0}
+                        max={100}
+                        value={(volume ?? 0) * 100}
+                        onChange={(_, value) => setVolume(value as number / 100)}
+                        orientation="vertical"
+                    />
+                </Box>
+            </Collapse>
+            <IconButton 
                 onClick={toggleMute}
             >
                 <FontAwesomeIcon 
@@ -369,9 +369,9 @@ export function PlayerView() {
                         ? faVolumeLow
                         : faVolumeHigh
                     } 
-                    style={{width: "1rem"}}
+                    style={{width: "1rem", height: "1rem"}}
                 />
-            </div>
-        </div>
-    </div>;
+            </IconButton>
+        </Box>
+    </Box>;
 }

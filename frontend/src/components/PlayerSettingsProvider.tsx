@@ -2,7 +2,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 
 import { APP_KEY } from "../config";
-import { useOBR } from "../react-obr/providers";
 
 const KEY = `${APP_KEY}/playlistVolumes`;
 

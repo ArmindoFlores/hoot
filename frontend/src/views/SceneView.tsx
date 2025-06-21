@@ -1,16 +1,13 @@
-import "react-toggle/style.css";
-
+import { Box, Button, Card, IconButton, Input, Slider, Switch, Typography } from "@mui/material";
 import { RepeatMode, useAudioPlayer } from "../components/AudioPlayerProvider";
 import { faAdd, faClose, faRepeat, faSave } from "@fortawesome/free-solid-svg-icons";
 import { useEffect, useState } from "react";
-import { useOBR, useOBRMessaging } from "../react-obr/providers";
+import { useOBRBase, useOBRBroadcast } from "../hooks/obr";
 
 import { APP_KEY } from "../config";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import OBR from "@owlbear-rodeo/sdk";
-import ReactSlider from "react-slider";
 import RepeatSelf from "../assets/repeat-self.svg";
-import Toggle from "react-toggle";
 import { useSettings } from "../components/SettingsProvider";
 import { useTracks } from "../components/TrackProvider";
 
@@ -31,14 +28,13 @@ interface AutoplayPlaylistItemProps {
 
 function AutoplayPlaylistItem({ autoplayEntry, setAutoplayEntry, setAutoplay }: AutoplayPlaylistItemProps) {
     const { tracks, playlists } = useTracks();
-    const { setSceneMetadata } = useOBR();
 
     const [ playlist, setPlaylist ] = useState(autoplayEntry.playlist);
     const [ track, setTrack ] = useState(autoplayEntry.track);
     const [ shuffle, setShuffle ] = useState(autoplayEntry.shuffle);
     const [ fadeIn, setFadeIn ] = useState(autoplayEntry.fadeIn);
     const [ repeatMode, setRepeatMode ] = useState(autoplayEntry.repeatMode);
-    const [ volume, setVolume ] = useState(autoplayEntry.volume);
+    const [ volume, setVolume ] = useState(autoplayEntry.volume ?? 0.75);
 
     const nextRepeatMode = () => {
         if (repeatMode === "no-repeat") {
@@ -55,7 +51,7 @@ function AutoplayPlaylistItem({ autoplayEntry, setAutoplayEntry, setAutoplay }: 
     const handleClose = () => {
         setAutoplay(old => {
             const arr = old.filter(item => item != autoplayEntry)
-            setSceneMetadata({
+            OBR.scene.setMetadata({
                 [`${APP_KEY}/autoplay`]: arr.length > 0 ? arr : undefined
             });
             return arr;
@@ -66,19 +62,19 @@ function AutoplayPlaylistItem({ autoplayEntry, setAutoplayEntry, setAutoplay }: 
         setAutoplayEntry({ playlist, track, shuffle, fadeIn, repeatMode, volume });
     }
 
-    return <div className="autoplay-container">
-        <div className="autoplay-row">
+    return <Card variant="elevation" sx={{ pl: 2, pr: 2, pt: 1, pb: 3, mb: 1, position: "relative" }}>
+        <Box sx={{ display: "flex", flexDirection: "row", alignItems: "end", justifyContent: "space-between" }}>
             <label>Playlist name</label>
-            <input
+            <Input
                 className={`small-input ${playlists.includes(playlist) ? "" : "invalid-value"}`}
                 value={playlist}
                 placeholder="playlist name"
                 onChange={(event) => setPlaylist(event.target.value)}
             />
-        </div>
-        <div className="autoplay-row">
+        </Box>
+        <Box sx={{ display: "flex", flexDirection: "row", alignItems: "end", justifyContent: "space-between" }}>
             <label>Track name</label>
-            <input
+            <Input
                 className={`small-input ${
                     (track == "" || tracks.get(playlist)?.map?.(track => track.name)?.includes?.(track))
                     ? "" : "invalid-value"
@@ -87,72 +83,60 @@ function AutoplayPlaylistItem({ autoplayEntry, setAutoplayEntry, setAutoplay }: 
                 placeholder="track name"
                 onChange={(event) => setTrack(event.target.value)}
             />
-        </div>
-        <div className="autoplay-row">
-            <div className="autoplay-subrow">
+        </Box>
+        <Box sx={{ display: "flex", flexDirection: "row", alignItems: "end", justifyContent: "space-between" }}>
+            <Box sx={{ display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                 <label>Shuffle</label>
-                <div style={{paddingLeft: "0.25rem", display: "flex"}}>
-                    <Toggle checked={shuffle} onChange={(value) => setShuffle(value.target.checked)} type="checkbox" />
-                </div>
-            </div>
-            <div className="autoplay-subrow">
+                <Switch checked={shuffle} onChange={(value) => setShuffle(value.target.checked)} />
+            </Box>
+            <Box sx={{ display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                 <label>Fade in</label>
-                <div style={{paddingLeft: "0.25rem", display: "flex"}}>
-                    <Toggle checked={fadeIn} onChange={(value) => setFadeIn(value.target.checked)} type="checkbox" />
-                </div>
-            </div>
-        </div>
-        <div className="autoplay-row">
-            <div className="autoplay-subrow">
+                <Switch checked={fadeIn} onChange={(value) => setFadeIn(value.target.checked)} />
+            </Box>
+        </Box>
+        <Box sx={{ display: "flex", flexDirection: "row", alignItems: "end", justifyContent: "space-between", gap: 2 }}>
+            <Box sx={{ display: "flex", flex: 1, gap: 2, flexDirection: "row", alignItems: "center", justifyContent: "left" }}>
                 <label style={{paddingRight: "0.5rem"}}>Repeat mode</label>
-                <div 
-                    className={`repeat-button clickable ${repeatMode !== "no-repeat" ? "highlighted" : ""}`}
+                <IconButton 
+                    size="small"
+                    sx={{opacity: repeatMode === "no-repeat" ? 0.5 : 1}}
                     onClick={nextRepeatMode}
                 >
                     {
                         repeatMode === "repeat-self" ? 
-                        <img src={RepeatSelf} style={{width: "1rem"}} className="unselectable" />
+                        <Box component="img" src={RepeatSelf} sx={{ userSelect: "none", width: "1.1rem" }} />
                         : <FontAwesomeIcon icon={faRepeat} />
                     }
-                </div>
-            </div>
-            <div className="autoplay-subrow">
+                </IconButton>
+            </Box>
+            <Box sx={{ display: "flex", flex: 1, gap: 2, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                 <label style={{paddingRight: "0.5rem"}}>Volume</label>
-                <div className="horizontal-volume-slider-container">
-                    <ReactSlider
-                        className="horizontal-volume-slider"
-                        thumbClassName={`volume-slider-thumb`}
-                        trackClassName={`horizontal-volume-slider-track`}
-                        min={0}
-                        max={100}
-                        value={volume * 100}
-                        onChange={value => setVolume(value / 100)}
-                        orientation="horizontal"
-                    />
-                </div>
-            </div>
-        </div>
-        <div 
-            className="remove-button-container clickable"
+                <Slider value={volume} onChange={(_, value) => setVolume(value as number)}/>
+            </Box>
+        </Box>
+        <IconButton 
+            sx={{ position: "absolute", top: 0, right: 0 }}
+            size="small"
             onClick={handleClose}
         >
             <FontAwesomeIcon icon={faClose} />
-        </div>
-        <div 
-            className="save-button-container clickable"
+        </IconButton>
+        <IconButton 
+            sx={{ position: "absolute", bottom: 0, right: 0 }}
+            size="small"
             onClick={handleSave}
         >
             <FontAwesomeIcon icon={faSave} />
-        </div>
-    </div>;
+        </IconButton>
+    </Card>;
 }
 
 export function SceneView() {
     const { tracks, playlists } = useTracks();
     const { setPlaylist, playing } = useAudioPlayer();
     const { stopOtherTracks, enableAutoplay } = useSettings();
-    const { sceneMetadata, setSceneMetadata, sceneReady } = useOBR();
-    const { sendMessage } = useOBRMessaging();
+    const { sceneReady } = useOBRBase();
+    const { sendMessage } = useOBRBroadcast();
 
     const [ autoplay, setAutoplay ] = useState<AutoplayList>([]);
     const [ playlistsToFadeIn, setPlaylistsToFadeIn ] = useState<{ playlist: string, track: string }[]>([]);
@@ -181,21 +165,21 @@ export function SceneView() {
     const setAutoplayEntry = (entry: AutoplayList[number], index: number) => {
         setAutoplay(old => {
             old.splice(index, 1, entry);
-            setSceneMetadata({
+            OBR.scene.setMetadata({
                 [`${APP_KEY}/autoplay`]: old
             });
             return old;
         });
     }
 
-    useEffect(() => {
-        const autoplay = sceneMetadata[`${APP_KEY}/autoplay`] as (AutoplayList|undefined);
-        setAutoplay(autoplay ?? []);
-        setPlaylistsToFadeIn([]);
-        if (enableAutoplay && autoplay && autoplay.length) {
-            setTriggerAutoplay(true);
-        }
-    }, [sceneMetadata, enableAutoplay]);
+    // useEffect(() => {
+    //     const autoplay = sceneMetadata[`${APP_KEY}/autoplay`] as (AutoplayList|undefined);
+    //     setAutoplay(autoplay ?? []);
+    //     setPlaylistsToFadeIn([]);
+    //     if (enableAutoplay && autoplay && autoplay.length) {
+    //         setTriggerAutoplay(true);
+    //     }
+    // }, [enableAutoplay]);
 
     useEffect(() => {
         if (!sceneReady) {
@@ -262,6 +246,7 @@ export function SceneView() {
                     const currentlyPlaying = playing[playlist];
                     if (currentlyPlaying == undefined) continue;
                     sendMessage(
+                        `${APP_KEY}/internal`,
                         { 
                             type: "fade",
                             payload: {
@@ -275,7 +260,7 @@ export function SceneView() {
                 }
             }
         }
-    }, [sceneReady, playing, playlists, sceneMetadata, sendMessage, setPlaylist, stopOtherTracks, tracks, triggerAutoplay, autoplay, hasAutoplayed]);
+    }, [sceneReady, playing, playlists, sendMessage, setPlaylist, stopOtherTracks, tracks, triggerAutoplay, autoplay, hasAutoplayed]);
 
     useEffect(() => {
         // This will run after entering a new scene, and after the initial track
@@ -293,6 +278,7 @@ export function SceneView() {
                     continue;
                 }
                 sendMessage(
+                    `${APP_KEY}/internal`,
                     {
                         type: "fade",
                         payload: {
@@ -312,39 +298,38 @@ export function SceneView() {
         }
     }, [playlistsToFadeIn, playing, sendMessage]);
 
-    return <div className="generic-view">
-        <div className="generic-view-inner">
-            <h2>Autoplay</h2>
+    return <Box sx={{ p: 2, overflow: "auto", height: "calc(100vh - 50px)" }}>
+        <Typography variant="h5">Autoplay</Typography>
+        <Box sx={{ p: 1 }} />
+        {
+            sceneReady ? (<>
             {
-                sceneReady ? (<>
-                {
-                    autoplay.length == 0 && 
-                    <p>
-                        Currently, this scene has no defined playlist(s) to autoplay.
-                        Use the "Add Playlist" button to add one.
-                    </p>
-                }
-                {
-                    autoplay.map((autoplayEntry, index) => (
-                        <AutoplayPlaylistItem 
-                            key={index}
-                            autoplayEntry={autoplayEntry}
-                            setAutoplayEntry={(entry: AutoplayList[number]) => setAutoplayEntry(entry, index)}
-                            setAutoplay={setAutoplay}
-                        />
-                    ))
-                }
-                <br></br>
-                <div className="scene-button-container">
-                    <button onClick={addNewPlaylist}>
-                        <p className="bold text-medium"><FontAwesomeIcon icon={faAdd} /> Add Playlist</p>
-                    </button>
-                </div>
-                </>) :
-                <p>
-                    No scene loaded.
-                </p>
+                autoplay.length == 0 && 
+                <Typography>
+                    Currently, this scene has no defined playlist(s) to autoplay.
+                    Use the "Add Playlist" button to add one.
+                </Typography>
             }
-        </div>
-    </div>;
+            {
+                autoplay.map((autoplayEntry, index) => (
+                    <AutoplayPlaylistItem 
+                        key={index}
+                        autoplayEntry={autoplayEntry}
+                        setAutoplayEntry={(entry: AutoplayList[number]) => setAutoplayEntry(entry, index)}
+                        setAutoplay={setAutoplay}
+                    />
+                ))
+            }
+            <Box sx={{ p: 1 }} />
+            <Box>
+                <Button variant="outlined" onClick={addNewPlaylist}>
+                    <FontAwesomeIcon icon={faAdd} style={{marginRight: "0.5rem"}} /> Add Playlist
+                </Button>
+            </Box>
+            </>) :
+            <Typography>
+                No scene loaded.
+            </Typography>
+        }
+    </Box>;
 }

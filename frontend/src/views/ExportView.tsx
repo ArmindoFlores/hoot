@@ -1,10 +1,10 @@
+import { Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Typography } from "@mui/material";
 import { Track, useTracks } from "../components/TrackProvider";
 import { faAdd, faFileExport, faFileImport, faTrash } from "@fortawesome/free-solid-svg-icons";
 import { useCallback, useRef, useState } from "react";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import OBR from "@owlbear-rodeo/sdk";
-import ReactModal from "react-modal";
 import { addTrackModal } from "./AddTrackView";
 import { importLocalTracksModal } from "./ImportLocalTracksView";
 import { useAuth } from "../components/AuthProvider";
@@ -16,19 +16,13 @@ export function ExportView() {
     const { status } = useAuth();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [openedModal, setModalOpened] = useState<ModalType|null>(null);
-    const [isModalClosing, setIsModalClosing] = useState<boolean>(false);
 
     const openModal = (modalName: ModalType) => {
-        setIsModalClosing(false);
         setModalOpened(modalName);
     };
 
     const closeModal = () => {
-        setIsModalClosing(true);
-        setTimeout(() => {
-            setModalOpened(null);
-            setIsModalClosing(false);
-        }, 300);
+        setModalOpened(null);
     };
 
     const exportFile = useCallback(() => {
@@ -80,16 +74,16 @@ export function ExportView() {
         }
     };
     
-    return <div className="generic-view">
-        <div className="generic-view-inner">
-            <div className="export-button-container" style={{display: status === "LOGGED_IN" ? "none" : "flex"}}>
-                <button onClick={exportFile}>
-                    <p className="bold text-medium"><FontAwesomeIcon icon={faFileExport} /> Export</p>
-                </button>
-                <button onClick={() => OBR.modal.open(addTrackModal)}>
-                    <p className="bold text-medium"><FontAwesomeIcon icon={faAdd} /> Add Track</p>
-                </button>
-                <button onClick={() => fileInputRef.current?.click?.()}>
+    return <Box>
+        <Box sx={{ p: 2, overflow: "auto", height: "calc(100vh - 50px)" }}>
+            <Box sx={{ flexDirection: "row", justifyContent: "space-evenly", display: status === "LOGGED_IN" ? "none" : "flex"}}>
+                <Button variant="outlined" onClick={exportFile}>
+                    <FontAwesomeIcon icon={faFileExport} style={{marginRight: "0.5rem"}} /> Export
+                </Button>
+                <Button variant="outlined" onClick={() => OBR.modal.open(addTrackModal)}>
+                    <FontAwesomeIcon icon={faAdd} style={{marginRight: "0.5rem"}} /> Add Track
+                </Button>
+                <Button variant="outlined" onClick={() => fileInputRef.current?.click?.()}>
                     <input
                         type="file"
                         accept=".json"
@@ -97,101 +91,97 @@ export function ExportView() {
                         onChange={handleFileUpload}
                         style={{ display: "none" }}
                     />
-                    <p className="bold text-medium"><FontAwesomeIcon icon={faFileImport} /> Import</p>
-                </button>
-            </div>
-            <br></br>
-            <div className="instructions" style={{display: status === "LOGGED_IN" ? "none" : "block"}}>
-                <p>
+                    <FontAwesomeIcon icon={faFileImport} style={{marginRight: "0.5rem"}} /> Import
+                </Button>
+            </Box>
+            <Box sx={{ p: 1 }} />
+            <Box className="instructions" style={{display: status === "LOGGED_IN" ? "none" : "block"}}>
+                <Typography>
                     To bring your music into Hoot, simply use the import button to upload
                     a JSON file containing your curated track list, following the format below.
                     Once imported, Hoot saves this data into your browser storage.
-                </p>
-                <br></br>
-                <div className="code">
-                    <p>{"["}</p>
-                    <div className="indent">
-                        <p>{"{"}</p>
-                        <div className="indent">
-                            <p>"name": "Track 1",</p>
-                            <p>"source": "https://site.com/track.mp3",</p>
-                            <p>"playlists": ["Calm", "Sad"]</p>
-                        </div>
-                        <p>{"},"}</p>
-                        <p>...</p>
-                    </div>
-                    <p>{"]"}</p>
-                </div>
-                <br></br>
-                <p>
+                </Typography>
+                <Box sx={{ p: 1 }} />
+                <Box>
+                    <Typography fontFamily="monospace">{"["}</Typography>
+                    <Box sx={{ pl: 4 }}>
+                        <Typography fontFamily="monospace">{"{"}</Typography>
+                        <Box sx={{ pl: 4 }}>
+                            <Typography fontFamily="monospace">"name": "Track 1",</Typography>
+                            <Typography fontFamily="monospace">"source": "https://site.com/track.mp3",</Typography>
+                            <Typography fontFamily="monospace">"playlists": ["Calm", "Sad"]</Typography>
+                        </Box>
+                        <Typography fontFamily="monospace">{"},"}</Typography>
+                        <Typography fontFamily="monospace">...</Typography>
+                    </Box>
+                    <Typography fontFamily="monospace">{"]"}</Typography>
+                </Box>
+                <Box sx={{ p: 1 }} />
+                <Typography>
                     You can export this data using the export button.
                     These features are required since Hoot cannot store music files directly. 
-                </p>
-                <br></br>
-                <p><span className="bold">NOTE:</span> Browsers might delete this data, so it's important to keep a backup!</p>
-            </div>
-            <div className="instructions" style={{display: status === "LOGGED_OUT" ? "none" : "block"}}>
-                <p>
+                </Typography>
+                <Box sx={{ p: 1 }} />
+                <Typography><Box component="span" fontWeight="bold">NOTE:</Box> Browsers might delete this data, so it's important to keep a backup!</Typography>
+            </Box>
+            <Box sx={{display: status === "LOGGED_OUT" ? "none" : "block"}}>
+                <Typography>
                     To bring your music into Hoot, simply use the add track button to
                     start uploading your files. You can check your usage in the settings tab.
                     These tracks will be synced across all your devices.
-                </p>
-                <br></br>
+                </Typography>
+                <Box sx={{ p: 1 }} />
                 {
                     hasLocalTracks &&
                     <>
-                        <p>
+                        <Typography>
                             To import your local tracks into your Hoot account, you can use the
                             import tracks button. You can delete them from local storage after 
                             that is done.
-                        </p>
-                        <p>
-                            <span style={{fontWeight: "bold"}}>Note:</span> your local tracks won't 
+                        </Typography>
+                        <Typography>
+                            <Box fontWeight="bold" component="span">Note:</Box> your local tracks won't 
                             be available while you're logged in.
-                        </p>
-                        <br></br>
+                        </Typography>
+                        <Box sx={{ p: 1 }} />
                     </>
                 }
-                <div className="export-button-container">
-                    <button style={{marginRight: "1rem"}} onClick={() => OBR.modal.open(addTrackModal)}>
-                        <p className="bold text-medium"><FontAwesomeIcon icon={faAdd} /> Add Track</p>
-                    </button>
+                <Box sx={{ display: "grid", grid: "auto-flow dense / 1fr 1fr 1fr" }}>
+                    <Button variant="outlined" sx={{mr: 2}} onClick={() => OBR.modal.open(addTrackModal)}>
+                        <FontAwesomeIcon icon={faAdd} style={{ marginRight: "0.5rem" }} />Add Track
+                    </Button>
                     {
                         hasLocalTracks && <>
-                            <button style={{marginRight: "1rem"}} onClick={() => OBR.modal.open(importLocalTracksModal)}>
-                                <p className="bold text-medium"><FontAwesomeIcon icon={faFileImport} /> Import tracks</p>
-                            </button>   
-                            <button onClick={() => openModal("DELETE_TRACKS")}>
-                                <p className="bold text-medium"><FontAwesomeIcon icon={faTrash} /> Delete tracks</p>
-                            </button>  
+                            <Button variant="outlined" sx={{ mr: 2}} onClick={() => OBR.modal.open(importLocalTracksModal)}>
+                                <FontAwesomeIcon icon={faFileImport} style={{ marginRight: "0.5rem" }} /> Import tracks
+                            </Button>   
+                            <Button variant="outlined" onClick={() => openModal("DELETE_TRACKS")}>
+                                <FontAwesomeIcon icon={faTrash} style={{ marginRight: "0.5rem" }} /> Delete tracks
+                            </Button>  
                         </>
                     }
-                </div>
-            </div>
-        </div>
-        <ReactModal
-            isOpen={openedModal === "DELETE_TRACKS"}
-            onRequestClose={closeModal}
-            contentLabel="Delete tracks"
-            overlayClassName={`modal-overlay ${
-                isModalClosing ? "fade-out" : ""
-            }`}
-            className={`modal-content ${isModalClosing ? "fade-out" : ""}`}
+                </Box>
+            </Box>
+        </Box>
+        <Dialog
+            open={openedModal === "DELETE_TRACKS"}
+            onClose={closeModal}
           >
-            <h2>Delete Tracks</h2>
-            <p>
-                Are you sure you want to delete all your <span style={{fontWeight: "bold"}}>local</span> tracks?
-                This operation is irreversible, so export your tracks before deleting them to keep a backup.
-            </p>
-            <br></br>
-            <div style={{display: "flex", flexDirection: "row", alignContent: "center", justifyContent: "center"}}>
-                <button style={{marginRight: "1rem"}} onClick={() => { purgeLocalTracks(); closeModal(); }}>
-                    <p className="bold text-medium"><FontAwesomeIcon icon={faTrash} /> Delete</p>
-                </button>  
-                <button onClick={() => closeModal()}>
-                    <p className="bold text-medium">Cancel</p>
-                </button>  
-            </div>
-        </ReactModal>
-    </div>;
+            <DialogTitle>Delete Tracks</DialogTitle>
+            <DialogContent>
+                <DialogContentText>
+                    Are you sure you want to delete all your <Box component="span" sx={{fontWeight: "bold"}}>local</Box> tracks?
+                    This operation is irreversible, so export your tracks before deleting them to keep a backup.
+                </DialogContentText>
+            </DialogContent>
+            <DialogActions>
+                <Button onClick={() => { purgeLocalTracks(); closeModal(); }}>
+                    <FontAwesomeIcon icon={faTrash} style={{marginRight: "0.5rem"}} /> Delete
+                </Button>  
+                <Button onClick={() => closeModal()}>
+                    Cancel
+                </Button>  
+            </DialogActions>
+        </Dialog>
+    </Box>;
 }

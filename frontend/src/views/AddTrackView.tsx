@@ -1,10 +1,11 @@
+import { Box, Button, Input, Typography } from "@mui/material";
 import { useCallback, useRef, useState } from "react";
 
 import { APP_KEY } from "../config";
 import { Modal } from "@owlbear-rodeo/sdk/lib/types/Modal";
 import OBR from "@owlbear-rodeo/sdk";
 import { useAuth } from "../components/AuthProvider";
-import { useOBRMessaging } from "../react-obr/providers";
+import { useOBRBroadcast } from "../hooks/obr";
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const addTrackModal: Modal = {
@@ -19,7 +20,7 @@ function closeAddTrackModal() {
 }
 
 export function AddTrackView() {
-    const { sendMessage } = useOBRMessaging();
+    const { sendMessage } = useOBRBroadcast();
     const { status } = useAuth();
     
     const [ track, setTrack ] = useState("");
@@ -50,71 +51,74 @@ export function AddTrackView() {
             OBR.notification.show("Please upload a file for this track", "ERROR");
             return;
         }
-        sendMessage({
-            type: "add-track",
-            payload: {
-                name: track,
-                playlists: playlistArray,
-                source,
-                file: fileInputRef.current?.files?.[0]
-            }
-        }, undefined, "LOCAL");
+        sendMessage(
+            `${APP_KEY}/internal`,
+            {
+                type: "add-track",
+                payload: {
+                    name: track,
+                    playlists: playlistArray,
+                    source,
+                    file: fileInputRef.current?.files?.[0]
+                }
+            },
+            undefined,
+            "LOCAL"
+        );
         closeAddTrackModal();
     }, [track, playlists, source, sendMessage, status]);
     
-    return <div className="generic-view paper">
-        <div className="generic-view-inner">
-            <h2>Add new track</h2>
-            <br></br>
-            <div className="addtrack-row">
-                <label>Track name</label>
-                <input
+    return <Box sx={{ p: 2 }}>
+        <Typography variant="h5">Add new track</Typography>
+        <Box sx={{ p: 1 }} />
+        <Box sx={{ display: "flex", flexDirection: "row", alignItems: "end", gap: 1, justifyContent: "space-between" }}>
+            <Typography>Track name</Typography>
+            <Input
+                style={{width: "14rem"}}
+                placeholder="My Track"
+                value={track}
+                onChange={event => setTrack(event.target.value)}
+            />
+        </Box>
+        <Box sx={{ display: "flex", flexDirection: "row", alignItems: "end", gap: 1, justifyContent: "space-between" }}>
+            <Typography>Playlist names</Typography>
+            <Input
+                style={{width: "14rem"}}
+                placeholder="Ambient, Battle"
+                value={playlists}
+                onChange={event => setPlaylists(event.target.value)}
+            />
+        </Box>
+        {
+            status === "LOGGED_OUT" && <Box sx={{ display: "flex", flexDirection: "row", alignItems: "end", gap: 1, justifyContent: "space-between" }}>
+                <Typography>Source</Typography>
+                <Input
                     style={{width: "14rem"}}
-                    placeholder="My Track"
-                    value={track}
-                    onChange={event => setTrack(event.target.value)}
+                    placeholder="https://website.com/file.mp3"
+                    value={source}
+                    onChange={event => setSource(event.target.value)}
                 />
-            </div>
-            <div className="addtrack-row">
-                <label>Playlist names</label>
-                <input
+            </Box>
+        }
+        {
+            status === "LOGGED_IN" && <Box sx={{ display: "flex", flexDirection: "row", alignItems: "end", gap: 1, justifyContent: "space-between" }}>
+                <Typography>Source</Typography>
+                <Input
                     style={{width: "14rem"}}
-                    placeholder="Ambient, Battle"
-                    value={playlists}
-                    onChange={event => setPlaylists(event.target.value)}
+                    ref={fileInputRef}
+                    inputProps={{ accept: "audio/*" }}
+                    type="file"
                 />
-            </div>
-            {
-                status === "LOGGED_OUT" && <div className="addtrack-row">
-                    <label>Source</label>
-                    <input
-                        style={{width: "14rem"}}
-                        placeholder="https://website.com/file.mp3"
-                        value={source}
-                        onChange={event => setSource(event.target.value)}
-                    />
-                </div>
-            }
-            {
-                status === "LOGGED_IN" && <div className="addtrack-row">
-                    <label>Source</label>
-                    <input
-                        ref={fileInputRef}
-                        accept="audio/*"
-                        style={{width: "14rem"}}
-                        type="file"
-                    />
-                </div>
-            }
-            <br></br>
-            <div style={{ width: "100%", display: "flex", justifyContent: "space-evenly"}}>
-                <button onClick={handleAdd}>
-                    <p className="bold text-medium">Add</p>
-                </button>
-                <button onClick={closeAddTrackModal}>
-                    <p className="bold text-medium">Cancel</p>
-                </button>
-            </div>
-        </div>
-    </div>;
+            </Box>
+        }
+        <Box sx={{ p: 1 }} />
+        <Box style={{ width: "100%", display: "flex", justifyContent: "space-evenly"}}>
+            <Button variant="outlined" onClick={handleAdd}>
+               Add
+            </Button>
+            <Button variant="outlined" onClick={closeAddTrackModal}>
+                Cancel
+            </Button>
+        </Box>
+    </Box>;
 }

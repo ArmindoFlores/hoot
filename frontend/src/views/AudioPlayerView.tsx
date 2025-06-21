@@ -1,9 +1,9 @@
+import { Box, Collapse, IconButton, Slider, Typography } from "@mui/material";
 import { faVolumeHigh, faVolumeLow, faVolumeMute, faVolumeOff } from "@fortawesome/free-solid-svg-icons";
 import { useEffect, useMemo, useState } from "react";
 
 import { AudioControls } from "../components/AudioControls";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import ReactSlider from "react-slider";
 import { useAudioPlayer } from "../components/AudioPlayerProvider";
 
 export function AudioPlayerView() {
@@ -31,41 +31,49 @@ export function AudioPlayerView() {
         }
     }, [volume]);
 
-    return <div className="audio-player-container">
-        <div className="audio-player-container-inner">
-            <h2>Currently Playing</h2>
+    return <Box sx={{ overflow: "auto", maxHeight: "calc(100vh - 50px)" }}>
+        <Box sx={{ p: 2, mb: 2 }}>
+            <Typography variant="h5">Currently Playing</Typography>
             {
                 playingPlaylists.length === 0 &&
-                <p>
+                <Typography>
                     No tracks are playing. 
-                    Go to the <u><span className="clickable" onClick={() => {}}>track list</span></u> tab
+                    Go to the track list tab
                     to queue up.
-                </p>
+                </Typography>
             }
+            <Box sx={{ p: 1 }}/>
             {
                 playingPlaylists.map(playlist => (
-                    <div key={playlist} className="audio-control-holder">
+                    <Box key={playlist} className="audio-control-holder">
                         <AudioControls playlist={playlist} />
-                    </div>
+                    </Box>
                 ))
             }
-        </div>
-        <div className="global-volume" onMouseEnter={() => setVolumeHovered(true)}onMouseLeave={() => setVolumeHovered(false)}>
-            <div className={`global-volume-slider-container ${volumeHovered ? "global-volume-shown" : ""}`}>
-                <ReactSlider
-                    className="volume-slider"
-                    thumbClassName={`volume-slider-thumb`}
-                    trackClassName={`volume-slider-track`}
-                    min={0}
-                    max={100}
-                    value={(volume ?? 0) * 100}
-                    onChange={value => setVolume(value / 100)}
-                    orientation="vertical"
-                    invert
-                />
-            </div>
-            <div 
-                className="global-volume-icon-container clickable"
+        </Box>  
+        <Box
+            onMouseEnter={() => setVolumeHovered(true)}
+            onMouseLeave={() => setVolumeHovered(false)}
+            sx={{
+                position: "absolute",
+                bottom: "0.5rem",
+                right: "1rem",
+                background: (theme) => theme.palette.background.default,
+                borderRadius: 5,
+            }}
+        >
+            <Collapse in={volumeHovered}>
+                <Box sx={{ height: "7rem", pb: 1, pt: 2 }}>
+                    <Slider
+                        min={0}
+                        max={100}
+                        value={(volume ?? 0) * 100}
+                        onChange={(_, value) => setVolume(value as number / 100)}
+                        orientation="vertical"
+                    />
+                </Box>
+            </Collapse>
+            <IconButton 
                 onClick={toggleMute}
             >
                 <FontAwesomeIcon 
@@ -78,9 +86,9 @@ export function AudioPlayerView() {
                         ? faVolumeLow
                         : faVolumeHigh
                     } 
-                    style={{width: "1rem"}}
+                    style={{width: "1rem", height: "1rem"}}
                 />
-            </div>
-        </div>
-    </div>;
+            </IconButton>
+        </Box>
+    </Box>;
 }

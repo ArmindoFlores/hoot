@@ -1,4 +1,5 @@
 import { APP_KEY, STORAGE_KEYS } from "../config";
+import { Box, Typography } from "@mui/material";
 import { apiService, isError } from "../services/apiService";
 import { useEffect, useState } from "react";
 
@@ -7,9 +8,7 @@ import { Modal } from "@owlbear-rodeo/sdk/lib/types/Modal";
 import OBR from "@owlbear-rodeo/sdk";
 import { Track } from "../components/TrackProvider";
 import localforage from "localforage";
-
-// import OBR from "@owlbear-rodeo/sdk";
-// import { useAuth } from "../components/AuthProvider";
+import { useOBRTheme } from "../hooks";
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const importLocalTracksModal: Modal = {
@@ -20,7 +19,7 @@ export const importLocalTracksModal: Modal = {
 }
 
 export function ImportLocalTracksModal() {
-    // const { status } = useAuth();
+    const theme = useOBRTheme();
     
     const [localTracks, setLocalTracks] = useState<Track[]>();
     const [ progress, setProgress ] = useState(0);
@@ -74,27 +73,25 @@ export function ImportLocalTracksModal() {
         return <></>;
     }
     
-    return <div className="generic-view paper">
-        <div className="generic-view-inner">
-            <h2>Import local tracks</h2>
-            <br></br>
-            {
-                progress < localTracks.length ?
-                (
-                    error ? 
-                    <p>An error has occurred while importing the tracks: <span style={{fontStyle: "italic"}}>{error}</span></p>
-                    :
-                    <p>Importing local tracks, please do not close this window.</p>
-                )
+    return <Box sx={{ p: 2 }}>
+        <Typography variant="h5">Import local tracks</Typography>
+        <Box sx={{ p: 1 }} />
+        {
+            progress < localTracks.length ?
+            (
+                error ? 
+                <Typography>An error has occurred while importing the tracks: <Box component="span" style={{fontStyle: "italic"}}>{error}</Box></Typography>
                 :
-                <p>All tracks have been imported. You may now close this window.</p>
-            }
-            <br></br>
-            <div style={{display: "flex", justifyContent: "space-between", flexDirection: "row"}}>
-                <p>{Math.round(progress / localTracks.length * 100)}%</p>
-                <Line percent={progress / localTracks.length * 100} strokeWidth={4} trailWidth={4} style={{marginLeft: "1rem", marginRight: "1rem"}} />
-                <p>{progress}/{localTracks.length}</p>
-            </div>
-        </div>
-    </div>;
+                <Typography>Importing local tracks, please do not close this window.</Typography>
+            )
+            :
+            <Typography>All tracks have been imported. You may now close this window.</Typography>
+        }
+        <Box sx={{ p: 1 }} />
+        <Box style={{display: "flex", justifyContent: "space-between", flexDirection: "row"}}>
+            <Typography>{Math.round(progress / localTracks.length * 100)}%</Typography>
+            <Line strokeColor={theme?.primary.dark} percent={progress / localTracks.length * 100} strokeWidth={4} trailWidth={4} style={{marginLeft: "1rem", marginRight: "1rem"}} />
+            <Typography>{progress}/{localTracks.length}</Typography>
+        </Box>
+    </Box>;
 }
