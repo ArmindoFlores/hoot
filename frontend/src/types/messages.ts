@@ -1,6 +1,6 @@
-import { RepeatMode } from "../components/AudioPlayerProvider";
+import { RepeatMode } from "../providers/AudioPlayerProvider";
 import { SimpleTrack } from "./tracks";
-import { Track } from "../components/TrackProvider";
+import { Track } from "../providers/TrackProvider";
 
 export interface FadeObject {
     playlist: string;

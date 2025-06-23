@@ -10,9 +10,9 @@ import OBR from "@owlbear-rodeo/sdk";
 import { User } from "../types/user";
 import { byteSize } from "../utils";
 import { faPatreon } from "@fortawesome/free-brands-svg-icons";
-import { useAuth } from "../components/AuthProvider";
+import { useAuth } from "../providers/AuthProvider";
 import { useOBRTheme } from "../hooks";
-import { useSettings } from "../components/SettingsProvider";
+import { useSettings } from "../providers/SettingsProvider";
 
 const PATREON_URL = `https://www.patreon.com/oauth2/authorize?response_type=code&client_id=${PATREON_CLIENT_ID}&redirect_uri=${PATREON_REDIRECT_URI}&state=123`;
 type ModalType = "PATREON" | "UNLINK_PATREON";

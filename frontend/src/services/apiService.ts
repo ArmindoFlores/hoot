@@ -1,6 +1,5 @@
 import { ENDPOINT } from "../config";
-import { OnlineTrack } from "../types/tracks";
-import { Track } from "../components/TrackProvider";
+import { Track } from "../types/tracks";
 import { User } from "../types/user";
 
 export type ApiError = {
@@ -39,8 +38,7 @@ async function request(endpoint: string, method: string, body?: BodyInit, json =
     return req.json();
 }
 
-function addTrack(name: string, playlists: string[], file: File): ApiResponse<OnlineTrack> {
-    console.log(file);
+function addTrack(name: string, playlists: string[], file: File): ApiResponse<Track> {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("metadata", JSON.stringify({
@@ -56,7 +54,7 @@ function addTrack(name: string, playlists: string[], file: File): ApiResponse<On
     );
 }
 
-function addTrackFromURL(name: string, playlists: string[], source: string): ApiResponse<OnlineTrack> {
+function addTrackFromURL(name: string, playlists: string[], source: string): ApiResponse<Track> {
     const formData = new FormData();
     formData.append("metadata", JSON.stringify({
         track_name: name,
@@ -72,7 +70,7 @@ function addTrackFromURL(name: string, playlists: string[], source: string): Api
     );
 }
 
-function deleteTrack(id: number, playlist?: string): ApiResponse<OnlineTrack> {
+function deleteTrack(id: number, playlist?: string): ApiResponse<Track> {
     return request(
         `/tracks/${id}`,
         "DELETE",
@@ -86,7 +84,7 @@ function getProfile(): ApiResponse<User> {
     return request("/user", "GET");
 }
 
-function getTrack(trackId: number): ApiResponse<OnlineTrack> {
+function getTrack(trackId: number): ApiResponse<Track> {
     return request(`/tracks/${trackId}`, "GET");
 }
 

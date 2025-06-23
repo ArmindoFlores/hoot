@@ -1,6 +1,6 @@
 import { Box, Button, Collapse, IconButton, Slider, Typography } from "@mui/material";
 import { FadeObject, MessageContent } from "../types/messages";
-import { PlayerSettingsProvider, usePlayerSettings } from "../components/PlayerSettingsProvider";
+import { PlayerSettingsProvider, usePlayerSettings } from "../providers/PlayerSettingsProvider";
 import { faVolumeHigh, faVolumeLow, faVolumeMute, faVolumeOff } from "@fortawesome/free-solid-svg-icons";
 import { fadeInVolume, fadeOutVolume } from "../utils";
 import { useCallback, useEffect, useRef, useState } from "react";

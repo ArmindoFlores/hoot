@@ -1,20 +1,19 @@
 import { Box, Card, CircularProgress, IconButton, Slider, Typography } from "@mui/material";
-import { Track, useTracks } from "./TrackProvider";
 import { faBackward, faCircleExclamation, faClose, faForward, faPause, faPlay, faRepeat, faShuffle, faVolumeHigh, faVolumeLow, faVolumeOff } from "@fortawesome/free-solid-svg-icons";
-import { fadeInVolume, fadeOutVolume } from "../utils";
+import { useAudio, useAudioControls } from "../providers/AudioPlayerProvider";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { APP_KEY } from "../config";
 import FadeIn from "../assets/fadein.svg";
 import FadeOut from "../assets/fadeout.svg";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { MessageContent } from "../types/messages";
 import OBR from "@owlbear-rodeo/sdk";
+import { RepeatMode } from "../types/tracks";
 import RepeatSelf from "../assets/repeat-self.svg";
-import { useAudioPlayer } from "./AudioPlayerProvider";
 import { useOBRBroadcast } from "../hooks/obr";
-import { useSettings } from "./SettingsProvider";
+import { useSettings } from "../providers/SettingsProvider";
 import { useThrottled } from "../hooks";
+import { useTracks } from "../providers/TrackProvider";
 
 export interface AudioControlsProps {
     playlist: string;
@@ -68,275 +67,82 @@ async function tryPlay(audio: HTMLAudioElement, trackName: string) {
 
 export function AudioControls(props: AudioControlsProps) {
     const { 
-        volume, 
-        playing, 
-        setTrack,
+        name,
+        playing,
+        loaded,
+        duration,
+        volume,
+        position,
+        load,
+        play,
+        pause,
+        fadeIn,
+        fadeOut,
         setVolume,
-        setPlaybackTime,
-        setDuration,
-        setShuffle,
-        setIsPlaying,
-        setLoaded,
-        setRepeatMode
-    } = useAudioPlayer();
+        seek,
+    } = useAudioControls(props.playlist);
+    const { unloadTrack } = useAudio();
     const { fadeTime } = useSettings();
     const { tracks } = useTracks();
     const { sendMessage, registerMessageHandler } = useOBRBroadcast<MessageContent>();
-
-    const current = useMemo(() => playing[props.playlist], [playing, props.playlist]);
     const audioRef = useRef<HTMLAudioElement>(null);
     
     const [ shuffled, setShuffled ] = useState<typeof tracks>(new Map());
-    const [ loaded, setTrackLoaded ] = useState(false);
+    const [ shuffle, setShuffle ] = useState(false);
+    const [ repeatMode, setRepeatMode ] = useState<RepeatMode>("no-repeat");
     const [ scheduledUpdate, setScheduledUpdate ] = useState(false);
     const [ fading, setFading ] = useState(false);
     const [ errored, setErrored] = useState(false);
     const [ errorMessage, setErrorMessage] = useState("");
 
+    const sliderValue = (position != undefined && duration != undefined && duration != 0) ? position / duration * 100 : 0;
     const throttledSend = useThrottled(sendMessage, 250, "trailing");
 
-    const sendTrackUpdates = () => {
-        setScheduledUpdate(true);
-    }
-
-    const setCurrentTrack = useCallback((track?: Track) => {
-        setTrack(track, props.playlist);
-        sendTrackUpdates();
-    }, [props.playlist, setTrack]);
-    
-    const setAudioTime = useCallback((time: number) => {
-        const audioElement = audioRef.current;
-        if (audioElement) {
-            audioElement.currentTime = time;
-            setPlaybackTime(audioElement.currentTime, props.playlist);
-            sendTrackUpdates();
+    const nextRepeatMode = useCallback((prev: RepeatMode) => {
+        if (prev === "no-repeat") {
+            setRepeatMode("repeat-all");
         }
-    }, [props.playlist, setPlaybackTime]);
-
-    const nextRepeatMode = () => {
-        if (current.repeatMode === "no-repeat") {
-            setRepeatMode("repeat-all", props.playlist);
-        }
-        else if (current.repeatMode === "repeat-all") {
-            setRepeatMode("repeat-self", props.playlist);
+        else if (prev === "repeat-all") {
+            setRepeatMode("repeat-self");
         }
         else {
-            setRepeatMode("no-repeat", props.playlist);
+            setRepeatMode("no-repeat");
         }
-    }
-
-    const changeTrack = useCallback((offset: number) => {
-        if (fading) return;
-        const playlistTracks = (current.shuffle ? shuffled : tracks).get(props.playlist)!;
-        const currentIndex = playlistTracks.findIndex(track => track.name === current.track.name);
-        const nextIndex = (currentIndex + offset) % playlistTracks.length;
-        setCurrentTrack(playlistTracks[nextIndex]);
-        setAudioTime(0);
-        sendTrackUpdates();
-    }, [current.shuffle, current.track?.name, fading, props.playlist, setAudioTime, setCurrentTrack, shuffled, tracks]);
-
-    const handleAudioError = useCallback(() => {
-        OBR.notification.show(`Error loading track '${current.track.name}': ${audioRef.current?.error?.message}`, "ERROR");
-        setErrored(true);
-        setErrorMessage(`Error loading track (${audioRef.current?.error?.message})`);
-    }, [current.track?.name]);
-
-    const handleAudioLoaded = useCallback(() => {
-        setTrackLoaded(true); 
-        setLoaded(true, props.playlist);
-        setErrored(false);
-    }, [props.playlist, setLoaded]);
+    }, []);
 
     const handleFadeIn = useCallback(async () => {
-        const audio = audioRef.current;
-        if (fading || current.playing || current.volume <= 0 || audio == undefined) return;
-        
         setFading(true);
-        const playResult = tryPlay(audio, current.track.name);
-        if (!playResult) {
-            setFading(false);
-            return;
-        }
-        
-        audio.volume = 0;
-        sendMessage(`${APP_KEY}/internal`, { type: "fade", payload: { playlist: props.playlist, fade: "in", duration: fadeTime }});
-        setIsPlaying(true, props.playlist);
+        await fadeIn(fadeTime);
+        setFading(false);
+    }, [fadeTime, fadeIn]);
 
-        const targetVolume = current.volume;
-        const interval = 50;
-        const steps = fadeTime / interval;
-
-        let currentStep = 0;
-
-        const fadeAudio = setInterval(() => {
-            if (currentStep < steps) {
-                audio.volume = fadeInVolume(targetVolume, currentStep, steps) * volume;
-                currentStep++;
-            } else {
-                clearInterval(fadeAudio);
-                setFading(false);
-            }
-        }, interval);
-    }, [fading, current.playing, current.volume, fadeTime, sendMessage, setIsPlaying, volume, props.playlist, current.track?.name]);
-
-    const handleFadeOut = useCallback(() => {
-        const audio = audioRef.current;
-        if (fading || !current.playing || current.volume <= 0 || audio == undefined) return;
-        
+    const handleFadeOut = useCallback(async () => {
         setFading(true);
-        sendMessage(`${APP_KEY}/internal`, { type: "fade", payload: { playlist: props.playlist, fade: "out", duration: fadeTime } });
+        await fadeOut(fadeTime);
+        setFading(false);
+    }, [fadeTime, fadeOut]);
 
-        const initialVolume = current.volume;
-        const interval = 50;
-        const steps = fadeTime / interval;
-
-        let currentStep = 0;
-
-        const fadeAudio = setInterval(() => {
-            if (currentStep <= steps) {
-                audio.volume = fadeOutVolume(initialVolume, currentStep, steps) * volume;
-                currentStep++;
-            } else {
-                audio.pause();
-                setIsPlaying(false, props.playlist);
-                clearInterval(fadeAudio);
-                setFading(false);
-            }
-        }, interval);
-    }, [fading, current.playing, current.volume, fadeTime, props.playlist, sendMessage, setIsPlaying, volume]);
-
-    useEffect(() => {
-        if (scheduledUpdate) {
-            setScheduledUpdate(false);
-            throttledSend(
-                `${APP_KEY}/internal`,
-                {
-                    type: "track",
-                    payload:  {
-                        playlist: props.playlist,
-                        name: current.track.name,
-                        source: current.track.source,
-                        time: current.time,
-                        volume: current.volume,
-                        playing: current.playing,
-                    }
-                }
-            );
-        }
-    }, [scheduledUpdate, throttledSend, current, props.playlist]);
-
-    useEffect(() => {
-        const newShuffled = new Map<string, Track[]>();
-        for (const playlist of tracks.keys()) {
-            newShuffled.set(playlist, shuffleArray([...tracks.get(playlist)!]));
-        }
-        setShuffled(newShuffled);
-    }, [tracks]);
-
-    useEffect(() => {
-        const audioElement = audioRef.current;
-        if (audioElement) {
-            const handleTimeUpdate = () => {
-                setPlaybackTime(audioElement.currentTime, props.playlist);
-            };
-            const handleEnded = () => {
-                if (current.repeatMode === "no-repeat") {
-                    setIsPlaying(false, props.playlist);
-                    setAudioTime(0);
-                }
-                else if (current.repeatMode === "repeat-self") {
-                    setAudioTime(0);
-                    tryPlay(audioElement, current.track.name);
-                }
-                else {
-                    changeTrack(+1);
-                }
-                sendTrackUpdates();
-            }
-
-            audioElement.addEventListener("timeupdate", handleTimeUpdate);
-            audioElement.addEventListener("ended", handleEnded);
-
-            return () => {
-                audioElement.removeEventListener("timeupdate", handleTimeUpdate);
-                audioElement.removeEventListener("ended", handleEnded);
-            };
-        }
-    }, [changeTrack, current.repeatMode, current.shuffle, current.track?.name, props.playlist, setAudioTime, setIsPlaying, setPlaybackTime, tracks]);
-
-    useEffect(() => {
-        setLoaded(false, props.playlist);
-        setTrackLoaded(false);
-    }, [current.track?.name, props.playlist, setLoaded]);
-
-    useEffect(() => {
-        const audioElement = audioRef.current;
-        if (!fading && audioElement != undefined && current.volume) {
-            audioElement.volume = current.volume * volume;
-            sendTrackUpdates();
-        }
-    }, [current.volume, volume, fading])
-
-    useEffect(() => {
-        const audioElement = audioRef.current;
-        if (loaded && !fading && audioElement != undefined) {
-            if (current.playing) {
-                tryPlay(audioElement, current.track.name)
-            }
-            else {
-                audioElement.pause();
-            }
-            sendTrackUpdates();
-        }
-    }, [current.playing, loaded, fading, current.track?.name]);
-
-    useEffect(() => {
-        const audioElement = audioRef.current;
-        if (loaded && audioElement) {
-            setDuration(audioElement.duration, props.playlist);
-            setPlaybackTime(0, props.playlist);
-            sendTrackUpdates();
-        }
-    }, [loaded, props.playlist, setDuration, setPlaybackTime]);
-
-    useEffect(() => {
-        return registerMessageHandler(`${APP_KEY}/internal`, message => {
-            if (message.type === "fade") {
-                const payload = message.payload;
-                if (payload.playlist !== props.playlist) return;
-                
-                if (payload.fade === "in") {
-                    handleFadeIn();
-                }
-                else if (payload.fade === "out") {
-                    handleFadeOut();
-                }
-            }
-        });
-    }, [fading, current.playing, current.volume, fadeTime, registerMessageHandler, props.playlist, handleFadeIn, handleFadeOut]);
+    // const handleAudioError = useCallback(() => {
+    //     OBR.notification.show(`Error loading track '${current.track.name}': ${audioRef.current?.error?.message}`, "ERROR");
+    //     setErrored(true);
+    //     setErrorMessage(`Error loading track (${audioRef.current?.error?.message})`);
+    // }, []);
     
-    return <Card sx={{ p: 1, mb: 1, position: "relative" }}>
-        <audio
-            src={current.track?.source}
-            ref={audioRef}
-            onError={handleAudioError}
-            onCanPlayThrough={handleAudioLoaded}
-        />
+    return <Card sx={{ p: 1, pt: 2, mb: 1, position: "relative" }}>
         <Box sx={{ display: "flex", flexDirection: "row", gap: 1 }}>
             <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
                 <Slider
-                    min={0}
-                    max={100}
-                    value={(current.volume ?? 0) * 100}
-                    onChange={(_, value) => setVolume(value as number / 100, props.playlist)}
+                    size="small"
+                    value={(volume ?? 0) * 100}
+                    onChange={(_, value) => setVolume(value as number / 100)}
                     orientation="vertical"
                     disabled={fading}
                 />
                 <FontAwesomeIcon 
                     icon={
-                        current.volume == 0 
+                        volume == 0 
                         ? faVolumeOff 
-                        : (current.volume < 0.5)
+                        : (volume < 0.5)
                         ? faVolumeLow
                         : faVolumeHigh
                     } 
@@ -346,26 +152,26 @@ export function AudioControls(props: AudioControlsProps) {
             </Box>
             <Box sx={{ display: "flex", flexDirection: "column", flex: 1}}>
                 <Typography>
-                    <Box component="span" fontWeight="bold">{ props.playlist }:</Box> { current.track?.name }
+                    <Box component="span" fontWeight="bold">{ props.playlist }:</Box> { name }
                 </Typography>
                 <Box sx={{ display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 2}}>
-                    <Typography sx={{ userSelect: "none" }}>{formatTime(current.time)}</Typography>
+                    <Typography sx={{ userSelect: "none" }}>{formatTime(position ?? 0)}</Typography>
                         <Slider
+                            key={`slider-${sliderValue.toFixed(2)}`}
                             orientation="horizontal"
                             size="small"
-                            min={0}
-                            max={500}
-                            value={current.duration ? (current.time / current.duration * 500) : 0}
-                            onChange={(_, value) => setAudioTime(value as number / 500 * current.duration!)}
+                            value={sliderValue}
+                            onChange={(_, value) => duration != null ? seek(value as number / 100 * duration) : undefined}
                             disabled={!loaded}
                         />
-                    <Typography sx={{ userSelect: "none" }}>{formatTime(current.duration ?? 0)}</Typography>
+                    <Typography sx={{ userSelect: "none" }}>{formatTime(duration ?? 0)}</Typography>
                 </Box>
                 <Box sx={{ display: "flex", flexDirection: "row", gap: 1, justifyContent: "space-between", alignItems: "center"}}>
                     <Box sx={{ display: "flex", flexDirection: "row", gap: 0.5}}>
                         <IconButton
                             onClick={handleFadeIn}
-                            disabled={fading || current.playing || !loaded}
+                            sx={{ opacity: (fading || playing || !loaded) ? 0.5 : 1 }}
+                            disabled={fading || playing || !loaded}
                         >
                             <Box
                                 component="img"
@@ -374,7 +180,6 @@ export function AudioControls(props: AudioControlsProps) {
                             />
                         </IconButton>
                         <IconButton
-                            onClick={() => changeTrack(-1)}
                             disabled={fading}
                         >
                             <FontAwesomeIcon
@@ -382,20 +187,20 @@ export function AudioControls(props: AudioControlsProps) {
                             />
                         </IconButton>
                         <IconButton
-                            onClick={fading ? undefined : () => setIsPlaying(!current.playing, props.playlist)}
+                            onClick={fading ? undefined : (playing ? pause : play)}
                             disabled={fading || !loaded}
                         >
-                            <FontAwesomeIcon icon={current.playing ? faPause : faPlay} />
+                            <FontAwesomeIcon icon={playing ? faPause : faPlay} />
                         </IconButton>
                         <IconButton
-                            onClick={() => changeTrack(+1)}
                             disabled={fading}
                         >
                             <FontAwesomeIcon icon={faForward} />
                         </IconButton>
                         <IconButton
                             onClick={handleFadeOut}
-                            disabled={fading || !current.playing || !loaded}    
+                            sx={{ opacity: (fading || !playing || !loaded) ? 0.5 : 1 }}
+                            disabled={fading || !playing || !loaded}    
                         >
                             <Box
                                 component="img"
@@ -405,14 +210,14 @@ export function AudioControls(props: AudioControlsProps) {
                         </IconButton>
                     </Box>
                     <Box sx={{ display: "flex", flexDirection: "row", gap: 4, mr: 5 }}>
-                        <IconButton size="small" onClick={() => nextRepeatMode()} sx={{ opacity: current.repeatMode === "no-repeat" ? 0.5 : 1 }}>
+                        <IconButton size="small" onClick={() => nextRepeatMode(repeatMode)} sx={{ opacity: repeatMode === "no-repeat" ? 0.5 : 1 }}>
                             {
-                                current.repeatMode === "repeat-self" ? 
+                                repeatMode === "repeat-self" ? 
                                 <Box component="img" src={RepeatSelf} style={{width: "1.1rem", userSelect: "none" }} />
                                 : <FontAwesomeIcon icon={faRepeat} />
                             }
                         </IconButton>
-                        <IconButton size="small" onClick={() => setShuffle(!current.shuffle, props.playlist)} sx={{ opacity: current.shuffle ? 1 : 0.5 }}>
+                        <IconButton size="small" onClick={() => setShuffle(!shuffle)} sx={{ opacity: shuffle ? 1 : 0.5 }}>
                             <FontAwesomeIcon icon={faShuffle} />
                         </IconButton>
                     </Box>
@@ -420,9 +225,9 @@ export function AudioControls(props: AudioControlsProps) {
             </Box>
         </Box>
         <IconButton 
+            onClick={() => unloadTrack(props.playlist)}
             sx={{ position: "absolute", top: 5, right: 5 }}
             size="small"
-            onClick={() => setCurrentTrack(undefined)}
         >
             <FontAwesomeIcon icon={faClose} />
         </IconButton>

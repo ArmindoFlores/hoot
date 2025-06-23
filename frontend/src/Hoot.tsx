@@ -2,8 +2,8 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { useOBRBase, useOBRSelf } from "./hooks";
 
 import { AddTrackView } from "./views/AddTrackView";
-import { AudioPlayerProvider } from "./components/AudioPlayerProvider";
-import { AuthProvider } from "./components/AuthProvider";
+import { AudioPlayerProvider } from "./providers/AudioPlayerProvider";
+import { AuthProvider } from "./providers/AuthProvider";
 import { GMView } from "./views/GMView";
 import { ImportLocalTracksModal } from "./views/ImportLocalTracksView";
 import { OBRThemeProvider } from "./providers/OBRThemeProvider";
@@ -11,10 +11,10 @@ import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client
 import { PlayerView } from "./views/PlayerView";
 import { PrivacyPolicyView } from "./views/PrivacyPolicyView";
 import { QueryClient } from "@tanstack/react-query";
-import { SettingsProvider } from "./components/SettingsProvider";
+import { SettingsProvider } from "./providers/SettingsProvider";
 import { SignUpView } from "./views/SignUpView";
 import { TermsOfServiceView } from "./views/TermsOfServiceView";
-import { TrackProvider } from "./components/TrackProvider";
+import { TrackProvider } from "./providers/TrackProvider";
 import { Typography } from "@mui/material";
 import { VerifyEmailView } from "./views/VerifyEmailView";
 import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";

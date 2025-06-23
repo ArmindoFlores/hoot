@@ -1,3 +1,5 @@
+export type RepeatMode = "no-repeat" | "repeat-all" | "repeat-self";
+
 export interface SimpleTrack {
     playlist: string;
     name: string;
@@ -7,11 +9,11 @@ export interface SimpleTrack {
     playing: boolean;
 }
 
-export interface OnlineTrack {
+export interface Track {
     id: number;
     name: string;
     playlists?: string[];
-    source?: string;
-    source_expiration?: number;
+    source: string|null;
+    source_expiration: number|null;
     size: number;
 }

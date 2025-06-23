@@ -4,10 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 
 import { AudioControls } from "../components/AudioControls";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { useAudioPlayer } from "../components/AudioPlayerProvider";
+import { useAudio } from "../providers/AudioPlayerProvider";
 
 export function AudioPlayerView() {
-    const { playing, volume, setVolume } = useAudioPlayer();
+    const { playing, volume, setVolume } = useAudio();
     const playingPlaylists = useMemo(() => Object.keys(playing), [playing]);
 
     const [ previousVolume, setPreviousVolume ] = useState(volume); 

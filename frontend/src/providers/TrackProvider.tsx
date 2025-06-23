@@ -5,16 +5,11 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { apiService, isError } from "../services/apiService";
 
 import OBR from "@owlbear-rodeo/sdk";
+import { Track } from "../types/tracks";
 import baselocalforage from "localforage";
+import { expired } from "../utils";
+import { logging } from "../logging";
 import { useAuth } from "./AuthProvider";
-
-export interface Track {
-    name: string;
-    source: string;
-    playlists: string[];
-    id?: number;
-    source_expiration?: number;
-}
 
 interface TrackContextType {
     tracks: Map<string, Track[]>;
@@ -26,12 +21,13 @@ interface TrackContextType {
     updateTrack: (track: Track) => void;
     reload: () => void;
     purgeLocalTracks: () => void;
+    loadOnlineTrack: (track: Track) => Promise<Track>;
 }
 
 function trackArrayToMap(trackList: Track[]) {
     const tracks = new Map<string, Track[]>();
     for (const track of trackList) {
-        for (const playlist of track.playlists) {
+        for (const playlist of (track.playlists ?? [])) {
             if (!tracks.has(playlist)) {
                 tracks.set(playlist, []);
             }
@@ -46,8 +42,8 @@ function trackMapToArray(tracks: Map<string, Track[]>) {
     for (const trackList of tracks.values()) {
         for (const track of trackList) {
             const existing = result.find(existingTrack => existingTrack.name === track.name && existingTrack.source === track.source);
-            if (existing) {
-                for (const playlist of track.playlists) {
+            if (existing && existing.playlists != undefined) {
+                for (const playlist of (track.playlists ?? [])) {
                     if (!existing.playlists.includes(playlist)) {
                         existing.playlists.push(playlist);
                     }
@@ -65,6 +61,7 @@ const TrackContext = createContext<TrackContextType>({
     tracks: new Map(),
     playlists: [],
     hasLocalTracks: false,
+    loadOnlineTrack: () => { return new Promise(resolve => resolve({ id: 1, name: "", size: 0, source: null, source_expiration: null }))},
     addTrack: () => {},
     removeTrack: () => {},
     importTracks: () => {},
@@ -96,7 +93,7 @@ export function TrackProvider({ children, proxy }: { children: React.ReactNode, 
 
     const addTrack = useCallback((track: Track & { file?: File }) => {
         const doWork = (track: Track & { file?: File }) => {
-            for (const playlist of track.playlists) {
+            for (const playlist of (track.playlists ?? [])) {
                 const playlistObject = tracks.get(playlist);
                 if (playlistObject != undefined) {
                     const existing = playlistObject.find(existingTrack => existingTrack.name === track.name);
@@ -120,7 +117,7 @@ export function TrackProvider({ children, proxy }: { children: React.ReactNode, 
             );
         }
         if (status === "LOGGED_IN") {
-            apiService.addTrack(track.name, track.playlists, track.file!).then(result => {
+            apiService.addTrack(track.name, track.playlists ?? [], track.file!).then(result => {
                 if (isError(result)) {
                     throw new Error(result.error);
                 }
@@ -201,12 +198,34 @@ export function TrackProvider({ children, proxy }: { children: React.ReactNode, 
                     existingTrack.name = track.name;
                     existingTrack.source = track.source;
                     existingTrack.source_expiration = track.source_expiration;
-                    console.log("Updated track!")
+                    logging.info("Updated track!")
                 }
             }
         }
         setTracks(tracks);
     }, [status, tracks]);
+
+    const loadOnlineTrack = useCallback((track: Track): Promise<Track> => {
+        return new Promise((resolve, reject) => {
+            if (track.id == undefined) {
+                reject(new Error("Could not load online track"));
+                return;
+            }
+            if (track.source == undefined || expired(track.source_expiration)) {
+                apiService.getTrack(track.id).then(updatedTrack => {
+                    if (isError(updatedTrack)) {
+                        reject(new Error(updatedTrack.error));
+                        return;
+                    }
+                    updateTrack(updatedTrack);
+                    resolve(updatedTrack);
+                })
+            }
+            else {
+                resolve(track);
+            }
+        });
+    }, [updateTrack]);
 
     const reload = useCallback(() => {
         setTriggerReload(previous => previous + 1);
@@ -282,7 +301,7 @@ export function TrackProvider({ children, proxy }: { children: React.ReactNode, 
         }
     }, [triggerReload, status]);
 
-    return <TrackContext.Provider value={{tracks, playlists, hasLocalTracks, importTracks, addTrack, removeTrack, updateTrack, reload, purgeLocalTracks}}>
+    return <TrackContext.Provider value={{tracks, playlists, hasLocalTracks, importTracks, addTrack, removeTrack, updateTrack, reload, purgeLocalTracks, loadOnlineTrack}}>
         { children }
     </TrackContext.Provider>;
 }

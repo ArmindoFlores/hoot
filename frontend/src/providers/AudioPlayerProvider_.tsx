@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { Track, useTracks } from "./TrackProvider";
+import { Track, useTracks } from "../providers/TrackProvider";
 import { apiService, isError } from "../services/apiService";
 
 import OBR from "@owlbear-rodeo/sdk";

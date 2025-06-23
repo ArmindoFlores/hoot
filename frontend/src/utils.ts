@@ -27,7 +27,7 @@ export function byteSize(bytes: number) {
     return `${Math.round(bytes * 100) / 100}${units[unit]}`;
 }
 
-export function expired(timestampSeconds: number|undefined): boolean {
+export function expired(timestampSeconds: number|undefined|null): boolean {
     if (timestampSeconds == undefined) return true;
     
     const nowSeconds = Date.now() / 1000;

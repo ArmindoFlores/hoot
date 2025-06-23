@@ -8,9 +8,9 @@ import { MessageContent } from "../types/messages";
 import { SceneView } from "./SceneView";
 import { SettingsView } from "./Settings";
 import { TrackListView } from "./TrackListView";
-import { useAudioPlayer } from "../components/AudioPlayerProvider";
+import { useAudio } from "../providers/AudioPlayerProvider";
 import { useOBRBroadcast } from "../hooks/obr";
-import { useTracks } from "../components/TrackProvider";
+import { useTracks } from "../providers/TrackProvider";
 
 interface TabPanelProps {
     children?: React.ReactNode;
@@ -34,7 +34,7 @@ function TabPanel(props: TabPanelProps) {
 
 export function GMView() {
     const { sendMessage, registerMessageHandler } = useOBRBroadcast<MessageContent>();
-    const { playing, setIsPlaying, setTrack, setRepeatMode, setShuffle, setVolume } = useAudioPlayer();
+    const { playing, setVolume } = useAudio();
     const { addTrack, tracks, } = useTracks();
     const [selectedTab, setTab] = useState(0);
 
@@ -71,38 +71,38 @@ export function GMView() {
         });
     }, [playing, addTrack, registerMessageHandler, sendMessage]);
 
-    useEffect(() => {
-        return registerMessageHandler(`${APP_KEY}/external`, message => {
-            // Allow other extensions to talk to hoot
-            if (message.type === "play") {
-                const payload = message.payload;
-                const playlist = payload.playlist;
-                const trackName = payload.track;
-                const trackId = Array.from(tracks.entries()).map(o => o[1]).flat().find(t => t.name === trackName)?.id;
-                const playlistTracks = tracks.get(playlist);
-                if (playlistTracks == undefined) {
-                    console.error("Couldn't find playlist");
-                    return;
-                }
-                const track = playlistTracks.find(t => t.id === trackId);
-                if (track == undefined) {
-                    console.error("Couldn't find track");
-                    return;
-                }
-                if (payload.shuffle != undefined) {
-                    setShuffle(payload.shuffle, playlist);
-                }
-                if (payload.repeatMode != undefined) {
-                    setRepeatMode(payload.repeatMode, playlist);
-                }
-                if (payload.volume != undefined || playing[playlist] == undefined) {
-                    setVolume(payload.volume ?? 0.75, playlist);
-                }
-                setTrack(track, playlist);
-                setIsPlaying(true, playlist);
-            }
-        });
-    }, [registerMessageHandler, setIsPlaying, setTrack, tracks, setShuffle, setRepeatMode, setVolume, playing]);
+    // useEffect(() => {
+    //     return registerMessageHandler(`${APP_KEY}/external`, message => {
+    //         // Allow other extensions to talk to hoot
+    //         if (message.type === "play") {
+    //             const payload = message.payload;
+    //             const playlist = payload.playlist;
+    //             const trackName = payload.track;
+    //             const trackId = Array.from(tracks.entries()).map(o => o[1]).flat().find(t => t.name === trackName)?.id;
+    //             const playlistTracks = tracks.get(playlist);
+    //             if (playlistTracks == undefined) {
+    //                 console.error("Couldn't find playlist");
+    //                 return;
+    //             }
+    //             const track = playlistTracks.find(t => t.id === trackId);
+    //             if (track == undefined) {
+    //                 console.error("Couldn't find track");
+    //                 return;
+    //             }
+    //             if (payload.shuffle != undefined) {
+    //                 setShuffle(payload.shuffle, playlist);
+    //             }
+    //             if (payload.repeatMode != undefined) {
+    //                 setRepeatMode(payload.repeatMode, playlist);
+    //             }
+    //             if (payload.volume != undefined || playing[playlist] == undefined) {
+    //                 setVolume(payload.volume ?? 0.75, playlist);
+    //             }
+    //             setTrack(track, playlist);
+    //             setIsPlaying(true, playlist);
+    //         }
+    //     });
+    // }, [registerMessageHandler, setIsPlaying, setTrack, tracks, setShuffle, setRepeatMode, setVolume, playing]);
     
     return <Box sx={{ padding: 0, height: "100vh", overflow: "hidden" }}>
         <Box sx={{ borderBottom: 1, borderColor: "divider" }}>

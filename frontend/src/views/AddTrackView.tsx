@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import { APP_KEY } from "../config";
 import { Modal } from "@owlbear-rodeo/sdk/lib/types/Modal";
 import OBR from "@owlbear-rodeo/sdk";
-import { useAuth } from "../components/AuthProvider";
+import { useAuth } from "../providers/AuthProvider";
 import { useOBRBroadcast } from "../hooks/obr";
 
 // eslint-disable-next-line react-refresh/only-export-components

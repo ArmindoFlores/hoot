@@ -1,5 +1,4 @@
 import { Box, Button, Card, IconButton, Input, Slider, Switch, Typography } from "@mui/material";
-import { RepeatMode, useAudioPlayer } from "../components/AudioPlayerProvider";
 import { faAdd, faClose, faRepeat, faSave } from "@fortawesome/free-solid-svg-icons";
 import { useEffect, useState } from "react";
 import { useOBRBase, useOBRBroadcast } from "../hooks/obr";
@@ -7,9 +6,11 @@ import { useOBRBase, useOBRBroadcast } from "../hooks/obr";
 import { APP_KEY } from "../config";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import OBR from "@owlbear-rodeo/sdk";
+import { RepeatMode } from "../types/tracks";
 import RepeatSelf from "../assets/repeat-self.svg";
-import { useSettings } from "../components/SettingsProvider";
-import { useTracks } from "../components/TrackProvider";
+import { useAudio } from "../providers/AudioPlayerProvider";
+import { useSettings } from "../providers/SettingsProvider";
+import { useTracks } from "../providers/TrackProvider";
 
 type AutoplayList = {
     playlist: string;
@@ -133,7 +134,7 @@ function AutoplayPlaylistItem({ autoplayEntry, setAutoplayEntry, setAutoplay }: 
 
 export function SceneView() {
     const { tracks, playlists } = useTracks();
-    const { setPlaylist, playing } = useAudioPlayer();
+    const { playing } = useAudio();
     const { stopOtherTracks, enableAutoplay } = useSettings();
     const { sceneReady } = useOBRBase();
     const { sendMessage } = useOBRBroadcast();
