@@ -1,4 +1,4 @@
-import { ArrowRight, Delete, VolumeUp } from "@mui/icons-material";
+import { ArrowRight, Delete, DragIndicator, VolumeUp } from "@mui/icons-material";
 import { AudioObject, useAudio } from "../providers/AudioPlayerProvider";
 import { Box, Card, Collapse, IconButton, Input, Typography } from "@mui/material";
 import { DndContext, DragEndEvent, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
@@ -31,8 +31,7 @@ function PlaylistItem({ playlist, playingPlaylists, playing, tracks, playTrack, 
         listeners,
         setNodeRef,
         transform,
-        transition,
-        isDragging,
+        transition
     } = useSortable({ id: playlist });
 
     const style = {
@@ -53,15 +52,20 @@ function PlaylistItem({ playlist, playingPlaylists, playing, tracks, playTrack, 
         return true;
     }, [playing, playingPlaylists]);
 
-    return <Box ref={setNodeRef} style={style} {...listeners} {...attributes} >
+    return <Box ref={setNodeRef} style={style} {...attributes} >
         <Card key={playlist} variant="elevation" sx={{ p: 1, mb: 1 }}>
-            <Box onPointerUp={() => { if (!isDragging) { setExpanded(old => !old) } }} sx={{ display: "flex", flexDirection: "row", gap: 1, cursor: "pointer" }}>
-                <ArrowRight />
-                <Typography fontWeight="bold">{playlist}</Typography>
-                {
-                    playingPlaylists.includes(playlist) &&
-                    <VolumeUp />
-                }
+            <Box sx={{ display: "flex", flexDirection: "row", gap: 1, cursor: "pointer", alignItems: "center", justifyContent: "space-between" }}>
+                <Box onClick={() => setExpanded(old => !old) } sx={{ display: "flex", flexDirection: "row", flex: 1, gap: 1, cursor: "pointer", alignItems: "center", justifyContent: "start" }}>
+                    <ArrowRight />
+                    <Typography fontWeight="bold">{playlist}</Typography>
+                    {
+                        playingPlaylists.includes(playlist) &&
+                        <VolumeUp />
+                    }
+                </Box>
+                <IconButton title="Drag" {...(!expanded ? listeners : {})}>
+                    <DragIndicator />
+                </IconButton>
             </Box>
             <Collapse in={expanded}>
                 {
@@ -98,7 +102,7 @@ export function TrackListView() {
     const { playing, loadTrack } = useAudio();
     const playingPlaylists = useMemo(() => Object.keys(playing), [playing]);
     const sensors = useSensors(
-        useSensor(PointerSensor, { activationConstraint: { delay: 100, tolerance: 25 } }),
+        useSensor(PointerSensor),
         useSensor(KeyboardSensor, {
             coordinateGetter: sortableKeyboardCoordinates,
         })
@@ -151,7 +155,7 @@ export function TrackListView() {
             const toKeep = sortedPlaylists.filter(playlist => playlists.includes(playlist));
             const toAdd = playlists.filter(playlist => !sortedPlaylists.includes(playlist));
             return [...toKeep, ...toAdd];
-        })
+        });
     }, [playlists]);
 
     return <DndContext

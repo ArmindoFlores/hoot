@@ -269,6 +269,7 @@ export function useAudioControls(id: string): AudioPlayerControls {
             track.gain.gain.setValueAtTime(0, now);
             track.gain.gain.linearRampToValueAtTime(1, now + duration / 1000);
             track.audio.play();
+            setPlaying(true);
 
             setTimeout(() => {
                 resolve();
@@ -293,6 +294,7 @@ export function useAudioControls(id: string): AudioPlayerControls {
         
             setTimeout(() => {
                 resolve();
+                setPlaying(false);
                 track.audio.pause();
             }, duration);
         });

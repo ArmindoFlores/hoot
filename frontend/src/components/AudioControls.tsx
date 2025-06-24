@@ -1,8 +1,10 @@
 import { Box, Card, CircularProgress, IconButton, Slider, Typography } from "@mui/material";
 import { faBackward, faCircleExclamation, faClose, faForward, faPause, faPlay, faRepeat, faShuffle, faVolumeHigh, faVolumeLow, faVolumeOff } from "@fortawesome/free-solid-svg-icons";
 import { useAudio, useAudioControls } from "../providers/AudioPlayerProvider";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
+import { CSS } from "@dnd-kit/utilities";
+import { DragIndicator } from "@mui/icons-material";
 import FadeIn from "../assets/fadein.svg";
 import FadeOut from "../assets/fadeout.svg";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -12,6 +14,7 @@ import { RepeatMode } from "../types/tracks";
 import RepeatSelf from "../assets/repeat-self.svg";
 import { useOBRBroadcast } from "../hooks/obr";
 import { useSettings } from "../providers/SettingsProvider";
+import { useSortable } from "@dnd-kit/sortable";
 import { useThrottled } from "../hooks";
 import { useTracks } from "../providers/TrackProvider";
 
@@ -85,6 +88,18 @@ export function AudioControls(props: AudioControlsProps) {
     const { fadeTime } = useSettings();
     const { tracks } = useTracks();
     const { sendMessage, registerMessageHandler } = useOBRBroadcast<MessageContent>();
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition
+    } = useSortable({ id: props.playlist });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+    };
     const audioRef = useRef<HTMLAudioElement>(null);
     
     const [ shuffled, setShuffled ] = useState<typeof tracks>(new Map());
@@ -128,121 +143,128 @@ export function AudioControls(props: AudioControlsProps) {
     //     setErrorMessage(`Error loading track (${audioRef.current?.error?.message})`);
     // }, []);
     
-    return <Card sx={{ p: 1, pt: 2, mb: 1, position: "relative" }}>
-        <Box sx={{ display: "flex", flexDirection: "row", gap: 1 }}>
-            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
-                <Slider
-                    size="small"
-                    value={(volume ?? 0) * 100}
-                    onChange={(_, value) => setVolume(value as number / 100)}
-                    orientation="vertical"
-                    disabled={fading}
-                />
-                <FontAwesomeIcon 
-                    icon={
-                        volume == 0 
-                        ? faVolumeOff 
-                        : (volume < 0.5)
-                        ? faVolumeLow
-                        : faVolumeHigh
-                    } 
-                    style={{width: "1rem"}}
-                    className={fading ? "disabled" : undefined}
-                />
-            </Box>
-            <Box sx={{ display: "flex", flexDirection: "column", flex: 1}}>
-                <Typography>
-                    <Box component="span" fontWeight="bold">{ props.playlist }:</Box> { name }
-                </Typography>
-                <Box sx={{ display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 2}}>
-                    <Typography sx={{ userSelect: "none" }}>{formatTime(position ?? 0)}</Typography>
-                        <Slider
-                            key={`slider-${sliderValue.toFixed(2)}`}
-                            orientation="horizontal"
-                            size="small"
-                            value={sliderValue}
-                            onChange={(_, value) => duration != null ? seek(value as number / 100 * duration) : undefined}
-                            disabled={!loaded}
-                        />
-                    <Typography sx={{ userSelect: "none" }}>{formatTime(duration ?? 0)}</Typography>
+    return <Box ref={setNodeRef} {...attributes} style={style}>
+        <Card sx={{ p: 1, pt: 2, mb: 1, position: "relative" }}>
+            <Box sx={{ display: "flex", flexDirection: "row", gap: 1 }}>
+                <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+                    <Slider
+                        size="small"
+                        value={(volume ?? 0) * 100}
+                        onChange={(_, value) => setVolume(value as number / 100)}
+                        orientation="vertical"
+                        disabled={fading}
+                    />
+                    <FontAwesomeIcon 
+                        icon={
+                            volume == 0 
+                            ? faVolumeOff 
+                            : (volume < 0.5)
+                            ? faVolumeLow
+                            : faVolumeHigh
+                        } 
+                        style={{width: "1rem"}}
+                        className={fading ? "disabled" : undefined}
+                    />
                 </Box>
-                <Box sx={{ display: "flex", flexDirection: "row", gap: 1, justifyContent: "space-between", alignItems: "center"}}>
-                    <Box sx={{ display: "flex", flexDirection: "row", gap: 0.5}}>
-                        <IconButton
-                            onClick={handleFadeIn}
-                            sx={{ opacity: (fading || playing || !loaded) ? 0.5 : 1 }}
-                            disabled={fading || playing || !loaded}
-                        >
-                            <Box
-                                component="img"
-                                sx={{ userSelect: "none" }}
-                                src={FadeIn}
-                            />
-                        </IconButton>
-                        <IconButton
-                            disabled={fading}
-                        >
-                            <FontAwesomeIcon
-                                icon={faBackward}
-                            />
-                        </IconButton>
-                        <IconButton
-                            onClick={fading ? undefined : (playing ? pause : play)}
-                            disabled={fading || !loaded}
-                        >
-                            <FontAwesomeIcon icon={playing ? faPause : faPlay} />
-                        </IconButton>
-                        <IconButton
-                            disabled={fading}
-                        >
-                            <FontAwesomeIcon icon={faForward} />
-                        </IconButton>
-                        <IconButton
-                            onClick={handleFadeOut}
-                            sx={{ opacity: (fading || !playing || !loaded) ? 0.5 : 1 }}
-                            disabled={fading || !playing || !loaded}    
-                        >
-                            <Box
-                                component="img"
-                                sx={{ userSelect: "none" }}
-                                src={FadeOut}
-                            />
-                        </IconButton>
-                    </Box>
-                    <Box sx={{ display: "flex", flexDirection: "row", gap: 4, mr: 5 }}>
-                        <IconButton size="small" onClick={() => nextRepeatMode(repeatMode)} sx={{ opacity: repeatMode === "no-repeat" ? 0.5 : 1 }}>
+                <Box sx={{ display: "flex", flexDirection: "column", flex: 1}}>
+                    <Box sx={{ display: "flex", flexDirection: "row", alignItems: "baseline", gap: 2 }}>
+                        <Typography>
+                            <Box component="span" fontWeight="bold">{ props.playlist }:</Box> { name }
+                        </Typography>
+                        <Box>
                             {
-                                repeatMode === "repeat-self" ? 
-                                <Box component="img" src={RepeatSelf} style={{width: "1.1rem", userSelect: "none" }} />
-                                : <FontAwesomeIcon icon={faRepeat} />
+                                (!loaded && !errored) ?
+                                <CircularProgress size="1rem" />
+                                :
+                                errored && <FontAwesomeIcon 
+                                    color="red"
+                                    icon={faCircleExclamation}
+                                    title={errorMessage}
+                                    onClick={() => { setErrored(false); audioRef.current?.load?.(); } }
+                                />
                             }
-                        </IconButton>
-                        <IconButton size="small" onClick={() => setShuffle(!shuffle)} sx={{ opacity: shuffle ? 1 : 0.5 }}>
-                            <FontAwesomeIcon icon={faShuffle} />
-                        </IconButton>
+                        </Box>
+                    </Box>
+                    <Box sx={{ display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 2}}>
+                        <Typography sx={{ userSelect: "none" }}>{formatTime(position ?? 0)}</Typography>
+                            <Slider
+                                key={`slider-${sliderValue.toFixed(2)}`}
+                                orientation="horizontal"
+                                size="small"
+                                value={sliderValue}
+                                onChange={(_, value) => duration != null ? seek(value as number / 100 * duration) : undefined}
+                                disabled={!loaded}
+                            />
+                        <Typography sx={{ userSelect: "none" }}>{formatTime(duration ?? 0)}</Typography>
+                    </Box>
+                    <Box sx={{ display: "flex", flexDirection: "row", gap: 1, justifyContent: "space-between", alignItems: "center"}}>
+                        <Box sx={{ display: "flex", flexDirection: "row", gap: 0.5}}>
+                            <IconButton
+                                onClick={handleFadeIn}
+                                sx={{ opacity: (fading || playing || !loaded) ? 0.5 : 1 }}
+                                disabled={fading || playing || !loaded}
+                            >
+                                <Box
+                                    component="img"
+                                    sx={{ userSelect: "none" }}
+                                    src={FadeIn}
+                                />
+                            </IconButton>
+                            <IconButton
+                                disabled={fading}
+                            >
+                                <FontAwesomeIcon
+                                    icon={faBackward}
+                                />
+                            </IconButton>
+                            <IconButton
+                                onClick={fading ? undefined : (playing ? pause : play)}
+                                disabled={fading || !loaded}
+                            >
+                                <FontAwesomeIcon icon={playing ? faPause : faPlay} />
+                            </IconButton>
+                            <IconButton
+                                disabled={fading}
+                            >
+                                <FontAwesomeIcon icon={faForward} />
+                            </IconButton>
+                            <IconButton
+                                onClick={handleFadeOut}
+                                sx={{ opacity: (fading || !playing || !loaded) ? 0.5 : 1 }}
+                                disabled={fading || !playing || !loaded}    
+                            >
+                                <Box
+                                    component="img"
+                                    sx={{ userSelect: "none" }}
+                                    src={FadeOut}
+                                />
+                            </IconButton>
+                        </Box>
+                        <Box sx={{ display: "flex", flexDirection: "row", gap: 4, mr: 5 }}>
+                            <IconButton size="small" onClick={() => nextRepeatMode(repeatMode)} sx={{ opacity: repeatMode === "no-repeat" ? 0.5 : 1 }}>
+                                {
+                                    repeatMode === "repeat-self" ? 
+                                    <Box component="img" src={RepeatSelf} style={{width: "1.1rem", userSelect: "none" }} />
+                                    : <FontAwesomeIcon icon={faRepeat} />
+                                }
+                            </IconButton>
+                            <IconButton size="small" onClick={() => setShuffle(!shuffle)} sx={{ opacity: shuffle ? 1 : 0.5 }}>
+                                <FontAwesomeIcon icon={faShuffle} />
+                            </IconButton>
+                        </Box>
                     </Box>
                 </Box>
             </Box>
-        </Box>
-        <IconButton 
-            onClick={() => unloadTrack(props.playlist)}
-            sx={{ position: "absolute", top: 5, right: 5 }}
-            size="small"
-        >
-            <FontAwesomeIcon icon={faClose} />
-        </IconButton>
-        <Box sx={{ position: "absolute", bottom: 2, right: 10 }}>
-            {
-                (!loaded && !errored) ?
-                <CircularProgress size="1rem" />
-                :
-                errored && <FontAwesomeIcon 
-                    color="red"
-                    icon={faCircleExclamation}
-                    title={errorMessage}
-                    onClick={() => { setErrored(false); audioRef.current?.load?.(); } }
-                />
-            }
-        </Box>
-    </Card>;
+            <IconButton 
+                onClick={() => unloadTrack(props.playlist)}
+                sx={{ position: "absolute", top: 5, right: 5 }}
+                size="small"
+            >
+                <FontAwesomeIcon icon={faClose} />
+            </IconButton>
+            <IconButton size="small" sx={{ position: "absolute", bottom: 2, right: 2 }} {...listeners}>
+                <DragIndicator />
+            </IconButton>
+        </Card>
+    </Box>;
 }
