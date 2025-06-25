@@ -7,6 +7,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import OBR from "@owlbear-rodeo/sdk";
 import { addTrackModal } from "./AddTrackView";
 import { importLocalTracksModal } from "./ImportLocalTracksView";
+import { logging } from "../logging";
 import { useAuth } from "../providers/AuthProvider";
 
 type ModalType = "DELETE_TRACKS";
@@ -68,7 +69,7 @@ export function ExportView() {
                 const fileContents = await importFile(file);
                 importTracks(fileContents as Track[]);
             } catch (e) {
-                console.error(e);
+                logging.error(e);
                 OBR.notification.show(`Error importing file (${(e as Error).message})`, "ERROR");
             }
         }

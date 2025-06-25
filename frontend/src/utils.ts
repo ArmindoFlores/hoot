@@ -28,7 +28,7 @@ export function byteSize(bytes: number) {
 }
 
 export function expired(timestampSeconds: number|undefined|null): boolean {
-    if (timestampSeconds == undefined) return true;
+    if (timestampSeconds == undefined) return false;
     
     const nowSeconds = Date.now() / 1000;
     return nowSeconds > timestampSeconds;

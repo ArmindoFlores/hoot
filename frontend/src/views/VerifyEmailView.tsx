@@ -1,6 +1,7 @@
 import { apiService, isError } from "../services/apiService";
 import { useEffect, useState } from "react";
 
+import { logging } from "../logging";
 import { useParams } from "react-router-dom";
 
 export function VerifyEmailView() {
@@ -18,7 +19,7 @@ export function VerifyEmailView() {
             }
             setStatus("success");
         }).catch((error: Error) => {
-            console.error(error);
+            logging.error(error);
             setStatus("failure");
             setError(error.message);
         })

@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 
 import OBR from "@owlbear-rodeo/sdk";
 import { User } from "../types/user";
+import { logging } from "../logging";
 
 type AuthStatus = "LOGGED_IN" | "LOGGED_OUT";
 
@@ -40,7 +41,7 @@ export function AuthProvider({ children }: { children: React.ReactNode, proxy: b
             setStatus("LOGGED_IN");
             setUser(result);
         }).catch((error: Error) => {
-            console.error(error);
+            logging.error(error);
             OBR.notification.show(`Couldn't fetch user data (${error.message})`);
         });
     }, [refreshCounter]);

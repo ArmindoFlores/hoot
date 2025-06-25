@@ -1,7 +1,7 @@
 import { Box, Card, CircularProgress, IconButton, Slider, Typography } from "@mui/material";
 import { faBackward, faCircleExclamation, faClose, faForward, faPause, faPlay, faRepeat, faShuffle, faVolumeHigh, faVolumeLow, faVolumeOff } from "@fortawesome/free-solid-svg-icons";
 import { useAudio, useAudioControls } from "../providers/AudioPlayerProvider";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { CSS } from "@dnd-kit/utilities";
 import { DragIndicator } from "@mui/icons-material";
@@ -16,7 +16,6 @@ import { useOBRBroadcast } from "../hooks/obr";
 import { useSettings } from "../providers/SettingsProvider";
 import { useSortable } from "@dnd-kit/sortable";
 import { useThrottled } from "../hooks";
-import { useTracks } from "../providers/TrackProvider";
 
 export interface AudioControlsProps {
     playlist: string;
@@ -68,25 +67,40 @@ async function tryPlay(audio: HTMLAudioElement, trackName: string) {
     return false;
 }
 
+async function runAndShowError<R>(func: () => Promise<R>, errorPrefix: string = "") {
+    try {
+        await func();
+    }
+    catch (error) {
+        OBR.notification.show(`${errorPrefix}${(error as Error).message}`, "ERROR");
+    }
+}
+
 export function AudioControls(props: AudioControlsProps) {
     const { 
         name,
         playing,
         loaded,
         duration,
+        repeatMode,
+        shuffle,
         volume,
         position,
-        load,
+        error,
+        reload,
         play,
         pause,
         fadeIn,
         fadeOut,
         setVolume,
+        setShuffle,
+        setRepeatMode,
         seek,
+        next,
+        prev,
     } = useAudioControls(props.playlist);
     const { unloadTrack } = useAudio();
     const { fadeTime } = useSettings();
-    const { tracks } = useTracks();
     const { sendMessage, registerMessageHandler } = useOBRBroadcast<MessageContent>();
     const {
         attributes,
@@ -95,20 +109,13 @@ export function AudioControls(props: AudioControlsProps) {
         transform,
         transition
     } = useSortable({ id: props.playlist });
-
+    
     const style = {
         transform: CSS.Transform.toString(transform),
         transition,
     };
-    const audioRef = useRef<HTMLAudioElement>(null);
-    
-    const [ shuffled, setShuffled ] = useState<typeof tracks>(new Map());
-    const [ shuffle, setShuffle ] = useState(false);
-    const [ repeatMode, setRepeatMode ] = useState<RepeatMode>("no-repeat");
     const [ scheduledUpdate, setScheduledUpdate ] = useState(false);
     const [ fading, setFading ] = useState(false);
-    const [ errored, setErrored] = useState(false);
-    const [ errorMessage, setErrorMessage] = useState("");
 
     const sliderValue = (position != undefined && duration != undefined && duration != 0) ? position / duration * 100 : 0;
     const throttledSend = useThrottled(sendMessage, 250, "trailing");
@@ -127,22 +134,16 @@ export function AudioControls(props: AudioControlsProps) {
 
     const handleFadeIn = useCallback(async () => {
         setFading(true);
-        await fadeIn(fadeTime);
+        await runAndShowError(() => fadeIn(fadeTime), "Error fading in track: ");
         setFading(false);
     }, [fadeTime, fadeIn]);
 
     const handleFadeOut = useCallback(async () => {
         setFading(true);
-        await fadeOut(fadeTime);
+        await runAndShowError(() => fadeOut(fadeTime), "Error fading out track: ");
         setFading(false);
     }, [fadeTime, fadeOut]);
 
-    // const handleAudioError = useCallback(() => {
-    //     OBR.notification.show(`Error loading track '${current.track.name}': ${audioRef.current?.error?.message}`, "ERROR");
-    //     setErrored(true);
-    //     setErrorMessage(`Error loading track (${audioRef.current?.error?.message})`);
-    // }, []);
-    
     return <Box ref={setNodeRef} {...attributes} style={style}>
         <Card sx={{ p: 1, pt: 2, mb: 1, position: "relative" }}>
             <Box sx={{ display: "flex", flexDirection: "row", gap: 1 }}>
@@ -173,15 +174,15 @@ export function AudioControls(props: AudioControlsProps) {
                         </Typography>
                         <Box>
                             {
-                                (!loaded && !errored) ?
+                                (!loaded && error == null) ?
                                 <CircularProgress size="1rem" />
                                 :
-                                errored && <FontAwesomeIcon 
-                                    color="red"
-                                    icon={faCircleExclamation}
-                                    title={errorMessage}
-                                    onClick={() => { setErrored(false); audioRef.current?.load?.(); } }
-                                />
+                                error != null && <IconButton size="small" title={error.message} onClick={() => runAndShowError(reload, "Error loading track: ")}>
+                                    <FontAwesomeIcon 
+                                        color="red"
+                                        icon={faCircleExclamation}
+                                    />
+                                </IconButton>
                             }
                         </Box>
                     </Box>
@@ -211,6 +212,7 @@ export function AudioControls(props: AudioControlsProps) {
                                 />
                             </IconButton>
                             <IconButton
+                                onClick={() => runAndShowError(prev, "Error playing track: ")}
                                 disabled={fading}
                             >
                                 <FontAwesomeIcon
@@ -218,12 +220,13 @@ export function AudioControls(props: AudioControlsProps) {
                                 />
                             </IconButton>
                             <IconButton
-                                onClick={fading ? undefined : (playing ? pause : play)}
+                                onClick={fading ? undefined : (playing ? pause : () => runAndShowError(play, "Error playing track: "))}
                                 disabled={fading || !loaded}
                             >
                                 <FontAwesomeIcon icon={playing ? faPause : faPlay} />
                             </IconButton>
                             <IconButton
+                                onClick={() => runAndShowError(next, "Error playing track: ")}
                                 disabled={fading}
                             >
                                 <FontAwesomeIcon icon={faForward} />
@@ -262,7 +265,7 @@ export function AudioControls(props: AudioControlsProps) {
             >
                 <FontAwesomeIcon icon={faClose} />
             </IconButton>
-            <IconButton size="small" sx={{ position: "absolute", bottom: 2, right: 2 }} {...listeners}>
+            <IconButton title="Drag" size="small" sx={{ position: "absolute", bottom: 2, right: 2 }} {...listeners}>
                 <DragIndicator />
             </IconButton>
         </Card>

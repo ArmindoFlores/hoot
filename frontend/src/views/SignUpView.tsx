@@ -1,5 +1,6 @@
 import { apiService, isError } from "../services/apiService";
 
+import { logging } from "../logging";
 import { useState } from "react";
 
 export function SignUpView() {
@@ -16,7 +17,7 @@ export function SignUpView() {
             }
             setCreated(true);
         }).catch((error: Error) => {
-            console.error(error);
+            logging.error(error);
             alert(error.message);
         }).finally(() => {
             setPassword("");

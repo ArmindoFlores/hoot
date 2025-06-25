@@ -10,6 +10,7 @@ import { APP_KEY } from "../config";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import OBR from "@owlbear-rodeo/sdk";
 import { SimpleTrack } from "../types/tracks";
+import { logging } from "../logging";
 
 type TrackWithDuration = SimpleTrack & { duration?: number };
 interface PlayerAudioIndicatorProps {
@@ -46,7 +47,7 @@ function PlayerAudioIndicator({
 
     const playTrack = useCallback(() => {
         audioRef.current!.play().catch((reason: DOMException) => {
-            console.error(reason, reason.name);
+            logging.error(reason, reason.name);
             if (reason.name === "NotAllowedError") {
                 // Autoplay issue
                 OBR.notification.show(
@@ -285,7 +286,7 @@ export function PlayerView() {
                 // Handled by children
             }
             else {
-                console.error(`Received invalid message of type '${message.type}':`, message);
+                logging.error(`Received invalid message of type '${message.type}':`, message);
             }
         });
     }, [GMIDs, playlists, sendMessage, registerMessageHandler]);

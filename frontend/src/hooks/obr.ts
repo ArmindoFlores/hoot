@@ -1,6 +1,8 @@
 import OBR, { Player, Theme } from "@owlbear-rodeo/sdk";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { logging } from "../logging";
+
 export function useOBRBase() {
     const [isReady, setReady] = useState(false);
     const [isSceneReady, setSceneReady] = useState(false);
@@ -116,7 +118,7 @@ export function useOBRBroadcast<MessageDataType>() {
                     }
                 }
                 catch (error) {
-                    console.error("Error while handling broadcast messages", error);
+                    logging.error("Error while handling broadcast messages", error);
                 }
             }
         }));

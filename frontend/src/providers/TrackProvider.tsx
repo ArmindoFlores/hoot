@@ -8,11 +8,14 @@ import OBR from "@owlbear-rodeo/sdk";
 import { Track } from "../types/tracks";
 import baselocalforage from "localforage";
 import { expired } from "../utils";
+import isEqual from "lodash/isEqual";
 import { logging } from "../logging";
+import shuffle from "lodash/shuffle";
 import { useAuth } from "./AuthProvider";
 
 interface TrackContextType {
     tracks: Map<string, Track[]>;
+    shuffledTracks: Map<string, Track[]>;
     playlists: string[];
     hasLocalTracks: boolean;
     addTrack: (track: Track & { file?: File }) => void;
@@ -57,19 +60,13 @@ function trackMapToArray(tracks: Map<string, Track[]>) {
     return result;
 }
 
-const TrackContext = createContext<TrackContextType>({
-    tracks: new Map(),
-    playlists: [],
-    hasLocalTracks: false,
-    loadOnlineTrack: () => { return new Promise(resolve => resolve({ id: 1, name: "", size: 0, source: null, source_expiration: null }))},
-    addTrack: () => {},
-    removeTrack: () => {},
-    importTracks: () => {},
-    updateTrack: () => {},
-    reload: () => {},
-    purgeLocalTracks: () => {},
-});
-export const useTracks = () => useContext(TrackContext);
+const TrackContext = createContext<TrackContextType|null>(null);
+
+export function useTracks() {
+    const ctx = useContext(TrackContext);
+    if (!ctx) throw new Error("useTracks() must be used within an AudioPlayerProvider");
+    return ctx;
+}
 
 if (window[APP_KEY] === undefined) {
     window[APP_KEY] = {};
@@ -78,6 +75,7 @@ window[APP_KEY].localforage = baselocalforage;
 
 export function TrackProvider({ children, proxy }: { children: React.ReactNode, proxy: boolean }) {
     const [ tracks, setTracks ] = useState<TrackContextType["tracks"]>(new Map());
+    const [shuffledTracks, setShuffledTracks] = useState<TrackContextType["shuffledTracks"]>(new Map());
     const [ playlists, setPlaylists ] = useState<TrackContextType["playlists"]>([]);
     const [ triggerReload, setTriggerReload ] = useState(0);
     const [ hasLocalTracks, setHasLocalTracks ] = useState(false);
@@ -124,7 +122,7 @@ export function TrackProvider({ children, proxy }: { children: React.ReactNode, 
                 doWork(result as Track);
                 OBR.notification.show("Added track", "SUCCESS");
             }).catch((error: Error) => {
-                console.error(error);
+                logging.error(error);
                 OBR.notification.show(`Couldn't add track (${error.message})`, "ERROR");
             });
         }
@@ -185,7 +183,7 @@ export function TrackProvider({ children, proxy }: { children: React.ReactNode, 
             OBR.notification.show("Tracks imported", "SUCCESS");
         }
         catch (e) {
-            console.error(e);
+            logging.error(e);
             OBR.notification.show("Error importing tracks", "ERROR");
         }
     }, [status, setTracks, setPlaylists, localforage]);
@@ -269,7 +267,7 @@ export function TrackProvider({ children, proxy }: { children: React.ReactNode, 
                 setPlaylists(Array.from(tracks.keys()));
             }
             catch (e) {
-                console.error(e);
+                logging.error(e);
                 OBR.notification.show("Error loading tracks", "ERROR");
             }
         });
@@ -292,7 +290,7 @@ export function TrackProvider({ children, proxy }: { children: React.ReactNode, 
             setTracks(tracks);
             setPlaylists(Array.from(tracks.keys()));
         }).catch((error: Error) => {
-            console.error(error);
+            logging.error(error);
             OBR.notification.show(`Error retrieving tracks (${error.message})`, "ERROR");
         });
 
@@ -301,7 +299,31 @@ export function TrackProvider({ children, proxy }: { children: React.ReactNode, 
         }
     }, [triggerReload, status]);
 
-    return <TrackContext.Provider value={{tracks, playlists, hasLocalTracks, importTracks, addTrack, removeTrack, updateTrack, reload, purgeLocalTracks, loadOnlineTrack}}>
+    useEffect(() => {
+        setShuffledTracks(oldShuffledTracks => {
+            const newShuffledTracks = oldShuffledTracks;
+            for (const [playlist, trackList] of tracks.entries()) {
+                if (!newShuffledTracks.has(playlist)) {
+                    newShuffledTracks.set(playlist, shuffle(trackList));
+                    continue;
+                }
+                const sortedTrackList = trackList.map(track => track.id).sort();
+                const shuffledTrackList = newShuffledTracks.get(playlist)!;
+                const sortedShuffledTrackList = shuffledTrackList.map(track => track.id).sort();
+                if (!isEqual(sortedTrackList, sortedShuffledTrackList)) {
+                    newShuffledTracks.set(playlist, shuffle(trackList));
+                    continue;
+                }
+                else {
+                    // Update shuffled tracks
+                    newShuffledTracks.set(playlist, shuffledTrackList.map(track => trackList.find(originalTrack => originalTrack.id === track.id)!));
+                }
+            }
+            return newShuffledTracks;
+        });
+    }, [tracks]);
+
+    return <TrackContext.Provider value={{tracks, shuffledTracks, playlists, hasLocalTracks, importTracks, addTrack, removeTrack, updateTrack, reload, purgeLocalTracks, loadOnlineTrack}}>
         { children }
     </TrackContext.Provider>;
 }

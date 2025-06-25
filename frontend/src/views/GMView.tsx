@@ -50,8 +50,8 @@ export function GMView() {
                     sendMessage(
                         `${APP_KEY}/internal`,
                         {
-                            type: "track", 
-                            payload:  {
+                            type: "track",
+                            payload: {
                                 playlist,
                                 name: track.track.name,
                                 source: track.track.source,
@@ -81,12 +81,12 @@ export function GMView() {
     //             const trackId = Array.from(tracks.entries()).map(o => o[1]).flat().find(t => t.name === trackName)?.id;
     //             const playlistTracks = tracks.get(playlist);
     //             if (playlistTracks == undefined) {
-    //                 console.error("Couldn't find playlist");
+    //                 logging.error("Couldn't find playlist");
     //                 return;
     //             }
     //             const track = playlistTracks.find(t => t.id === trackId);
     //             if (track == undefined) {
-    //                 console.error("Couldn't find track");
+    //                 logging.error("Couldn't find track");
     //                 return;
     //             }
     //             if (payload.shuffle != undefined) {
@@ -103,7 +103,7 @@ export function GMView() {
     //         }
     //     });
     // }, [registerMessageHandler, setIsPlaying, setTrack, tracks, setShuffle, setRepeatMode, setVolume, playing]);
-    
+
     return <Box sx={{ padding: 0, height: "100vh", overflow: "hidden" }}>
         <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
             <Tabs value={selectedTab} onChange={(_, tab) => setTab(tab)} centered>
@@ -116,18 +116,18 @@ export function GMView() {
         </Box>
         <TabPanel value={selectedTab} index={0}>
             <TrackListView />
-        </TabPanel> 
+        </TabPanel>
         <TabPanel value={selectedTab} index={1}>
             <AudioPlayerView />
-        </TabPanel> 
+        </TabPanel>
         <TabPanel value={selectedTab} index={2}>
             <SceneView />
-        </TabPanel> 
+        </TabPanel>
         <TabPanel value={selectedTab} index={3}>
             <ExportView />
-        </TabPanel> 
+        </TabPanel>
         <TabPanel value={selectedTab} index={4}>
             <SettingsView />
-        </TabPanel> 
+        </TabPanel>
     </Box>;
 }

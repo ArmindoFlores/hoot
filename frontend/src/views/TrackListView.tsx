@@ -11,9 +11,13 @@ import {
 } from "@dnd-kit/sortable";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { APP_KEY } from "../config";
 import { CSS } from "@dnd-kit/utilities";
+import OBR from "@owlbear-rodeo/sdk";
 import { Track } from "../types/tracks";
 import { useTracks } from "../providers/TrackProvider";
+
+const SORTED_PLAYLISTS_METADATA_KEY = `${APP_KEY}/sortedPlaylists`;
 
 interface PlaylistItemProps {
     playlist: string;
@@ -69,7 +73,7 @@ function PlaylistItem({ playlist, playingPlaylists, playing, tracks, playTrack, 
             </Box>
             <Collapse in={expanded}>
                 {
-                    tracks.get(playlist)!.filter(track => trackFilter(track)).map((track, index) =>
+                    (tracks.get(playlist) ?? []).filter(track => trackFilter(track)).map((track, index) =>
                         <Box
                             key={index}
                             onClick={() => playTrack(track, playlist)}
@@ -97,6 +101,12 @@ function PlaylistItem({ playlist, playingPlaylists, playing, tracks, playTrack, 
     </Box>;
 }
 
+function updateSortingOrder(sortingOrder: string[], existing: string[]) {
+    const toKeep = sortingOrder.filter(playlist => existing.includes(playlist));
+    const toAdd = existing.filter(playlist => !sortingOrder.includes(playlist));
+    return [...toKeep, ...toAdd];
+}
+
 export function TrackListView() {
     const { tracks, playlists, removeTrack, loadOnlineTrack } = useTracks();
     const { playing, loadTrack } = useAudio();
@@ -109,7 +119,8 @@ export function TrackListView() {
     );
     
     const [search, setSearch] = useState<string>("");
-    const [ sortedPlaylists, setSortedPlaylists ] = useState(playlists);
+    const [ sortedPlaylists, setSortedPlaylists ] = useState<string[]>([]);
+    const [ playlistSortOrder, setPlaylistSortOrder ] = useState<string[]|null>(null);
 
     const trackMatchesSearch = useCallback((track: Track) => {
         if (!search) {
@@ -134,29 +145,41 @@ export function TrackListView() {
 
     const playTrack = useCallback(async (track: Track, playlist: string) => {
         const updatedTrack = await loadOnlineTrack(track);
-        loadTrack(playlist, updatedTrack.source!, updatedTrack.name);
+        try {
+            await loadTrack(playlist, updatedTrack.source!, updatedTrack.name, updatedTrack.id.toString());
+            return;
+        }
+        catch (error) {
+            OBR.notification.show(`Error loading track: ${(error as Error).message}`, "ERROR");
+        }
     }, [loadTrack, loadOnlineTrack]);
 
     function handleDragEnd(event: DragEndEvent) {
         const { active, over } = event;
 
-        if (over != null && active.id !== over.id) {
-            setSortedPlaylists((items) => {
-                const oldIndex = items.indexOf(active.id as string);
-                const newIndex = items.indexOf(over.id as string);
-
-                return arrayMove(items, oldIndex, newIndex);
-            });
+        if (over != null && active.id !== over.id && playlistSortOrder != null) {
+            const items = updateSortingOrder(playlistSortOrder, playlists);
+            const oldIndex = items.indexOf(active.id as string);
+            const newIndex = items.indexOf(over.id as string);
+            const result = arrayMove(items, oldIndex, newIndex);
+            OBR.room.setMetadata({ [SORTED_PLAYLISTS_METADATA_KEY]: result });
+            setPlaylistSortOrder(result);
+            setSortedPlaylists(result);
         }
     }
 
     useEffect(() => {
-        setSortedPlaylists(sortedPlaylists => {
-            const toKeep = sortedPlaylists.filter(playlist => playlists.includes(playlist));
-            const toAdd = playlists.filter(playlist => !sortedPlaylists.includes(playlist));
-            return [...toKeep, ...toAdd];
+        OBR.room.getMetadata().then(metadata => {
+            if (metadata[SORTED_PLAYLISTS_METADATA_KEY] == undefined) return;
+            setPlaylistSortOrder(metadata[SORTED_PLAYLISTS_METADATA_KEY] as string[]);
         });
-    }, [playlists]);
+    }, []);
+
+    useEffect(() => {
+        if (playlistSortOrder == null) return;
+        const result = updateSortingOrder(playlistSortOrder, playlists);
+        return setSortedPlaylists(result);
+    }, [playlists, playlistSortOrder]);
 
     return <DndContext
         sensors={sensors}
