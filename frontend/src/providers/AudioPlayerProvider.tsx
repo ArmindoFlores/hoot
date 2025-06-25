@@ -1,12 +1,13 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { RepeatMode, Track } from "../types/tracks";
 
-import { RepeatMode } from "../types/tracks";
 import { logging } from "../logging";
 import uniqueId from "lodash/uniqueId";
 import { useTracks } from "./TrackProvider";
 
 export interface AudioElements {
+    nextTrack?: Track;
     gain: GainNode;
     audio: HTMLAudioElement;
     source: MediaElementAudioSourceNode;
@@ -17,10 +18,10 @@ export interface AudioElements {
 
 export interface AudioObject {
     id: string;
-    sourceURL: string;
-    name: string;
+    track: Track;
     shuffle: boolean;
     repeatMode: RepeatMode;
+    updateCount: number;
 }
 
 interface GlobalAudioContextType {
@@ -29,8 +30,11 @@ interface GlobalAudioContextType {
 
     unloadTrack: (id: string) => void;
     loadTrack: (id: string, url: string, name: string, trackId?: string, shuffle?: boolean, repeatMode?: RepeatMode) => Promise<{ audioObject: AudioObject, audioElements: AudioElements }>;
+    updateTrack: (id: string, trackId: string, shuffle?: boolean, repeatMode?: RepeatMode) => void;
     getTrack: (id: string) => AudioObject|null|undefined;
     getTrackElements: (id: string) => AudioElements|undefined;
+    getNextTrack: (id: string) => Track|null;
+    getPreviousTrack: (id: string) => Track|null;
     setVolume: (volume: number) => void;
 }
 
@@ -43,7 +47,6 @@ interface AudioPlayerControls {
     duration: number | null;
     volume: number;
     position: number | null;
-    trackIndex: number | null;
     shuffle: boolean;
     repeatMode: RepeatMode;
     error: Error | MediaError | null;
@@ -78,6 +81,9 @@ function cleanupAudioNodes(elements: AudioElements) {
     if (elements.onError) {
         elements.audio.removeEventListener("error", elements.onError);
     }
+    if (elements.onEnd) {
+        elements.audio.removeEventListener("ended", elements.onEnd);
+    }
 
     elements.audio.src = "";
     elements.audio.load();
@@ -88,32 +94,39 @@ function cleanupAudioNodes(elements: AudioElements) {
 function setupAudioNodes(
     context: AudioContext,
     globalGain: GainNode,
-    trackId: string,
-    url: string,
-    name: string,
+    id: string,
+    track: Track,
     shuffle: boolean,
     repeatMode: RepeatMode,
     onLoad?: (track: { audioObject: AudioObject, audioElements: AudioElements }) => void,
-    onError?: (e: MediaError) => void
+    onError?: (e: MediaError) => void,
+    onEnd?: () => void,
 ): { audioObject: AudioObject, audioElements: AudioElements } {
     const gainNode = context.createGain();
     gainNode.gain.setValueAtTime(1, 0);
-    const audio = new Audio(url);
+    const audio = new Audio(track.source!);
     const source = context.createMediaElementSource(audio);
     audio.crossOrigin = "anonymous";
 
     const trueOnError = onError ? () => onError(audio.error!) : undefined;
     if (onError && trueOnError) {
-        audio.addEventListener("error", trueOnError);
+        audio.addEventListener("error", trueOnError, { once: true });
+    }
+
+    if (onEnd) {
+        audio.addEventListener(
+            "ended",
+            onEnd
+        );
     }
 
     const trueOnLoad = onLoad ? () => onLoad({
         audioObject: {
-            id: trackId,
-            sourceURL: url,
-            name,
+            id,
+            track,
             shuffle,
             repeatMode,
+            updateCount: 0,
         },
         audioElements: {
             gain: gainNode,
@@ -121,6 +134,7 @@ function setupAudioNodes(
             source,
             onLoad: trueOnLoad,
             onError: trueOnError,
+            onEnd,
         }
     }) : undefined;
     if (onLoad && trueOnLoad) {
@@ -137,11 +151,11 @@ function setupAudioNodes(
 
     return {
         audioObject: {
-            id: trackId,
-            sourceURL: url,
-            name,
+            id,
+            track,
             shuffle,
             repeatMode,
+            updateCount: 0,
         },
         audioElements: {
             gain: gainNode,
@@ -149,11 +163,13 @@ function setupAudioNodes(
             source,
             onLoad: trueOnLoad,
             onError: trueOnError,
+            onEnd,
         }
     };
 }
 
 export function AudioPlayerProvider({ children }: { children: React.ReactNode }) {
+    const { tracks, shuffledTracks, loadOnlineTrack } = useTracks();
     const audioContextRef = useRef(new AudioContext());
     const globalGainRef = useRef<GainNode>();
     const audioElementsRef = useRef<Record<string, AudioElements>>({});
@@ -176,6 +192,47 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         if (globalGainRef.current == undefined) return;
         globalGainRef.current.gain.value = volume;
     }, [volume]);
+
+    const getNextTrack = useCallback((id: string, respectRepeatMode: boolean = false) => {
+        const current = playing[id];
+        if (current == undefined) return null;
+
+        if (respectRepeatMode && current.repeatMode == "no-repeat") {
+            return null;
+        }
+        if (respectRepeatMode && current.repeatMode == "repeat-self") {
+            return current.track;
+        }
+
+        const actualTracks = (current.shuffle ? shuffledTracks : tracks).get(id);
+        if (actualTracks == undefined) return null;
+
+        const index = actualTracks.findIndex(track => track.id.toString() === current.id);
+        if (index == -1) return null;
+        
+        const nextIndex = mod(index + 1, actualTracks.length);
+        return actualTracks[nextIndex];
+    }, [playing, shuffledTracks, tracks]);
+
+    const getPreviousTrack = useCallback((id: string) => {
+        const current = playing[id];
+        if (current == undefined) return null;
+
+        const actualTracks = (current.shuffle ? shuffledTracks : tracks).get(id);
+        if (actualTracks == undefined) return null;
+
+        const index = actualTracks.findIndex(track => track.id.toString() === current.id);
+        if (index == -1) return null;
+        
+        const prevIndex = mod(index - 1, actualTracks.length);
+        return actualTracks[prevIndex];
+    }, [playing, shuffledTracks, tracks]);
+
+    useEffect(() => {
+        for (const channel of Object.keys(audioElementsRef.current)) {
+            audioElementsRef.current[channel].nextTrack = getNextTrack(channel, true) ?? undefined;
+        }
+    }, [getNextTrack]);
 
     const unloadTrack = useCallback((id: string) => {
         setPlaying(prev => {
@@ -207,42 +264,82 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
                 }
 
                 const previousAudioElements = audioElementsRef.current[id];                
-                const track = prev[id];        
-                if (track == undefined || (track.id !== trackId && track.sourceURL !== url)) {
-                    if (previousAudioElements != undefined) {
-                        cleanupAudioNodes(previousAudioElements);
-                    }
+                const track = prev[id];
+                const originalTrack = (tracks.get(id) ?? []).find(t => t.id.toString() == trackId);
+                if (previousAudioElements != undefined) {
+                    cleanupAudioNodes(previousAudioElements);
+                }
 
-                    const { audioObject: newTrack, audioElements } = setupAudioNodes(
-                        audioContextRef.current,
-                        globalGainRef.current,
-                        trackId ?? uuid(),
-                        url,
-                        name,
-                        shuffle ?? false,
-                        repeatMode ?? "repeat-all",
-                        track => { logging.info("Track loaded:", track); resolve(track); },
-                        err => { reject(err ?? new Error("Audio failed to load")); },
-                    );
-                    audioElementsRef.current[id] = audioElements;
-                    return {
-                        ...prev,
-                        [id]: newTrack,
-                    };
-                }
-                else {
-                    const newTrack = track;
-                    newTrack.name = name;
-                    newTrack.shuffle = shuffle ?? false;
-                    newTrack.repeatMode = repeatMode ?? "repeat-all";
-                    resolve({ audioObject: newTrack, audioElements: audioElementsRef.current[id]});
-                    return {
-                        ...prev,
-                        [id]: newTrack,
-                    };
-                }
+                trackId = trackId ?? uuid();
+                const { audioObject: newTrack, audioElements } = setupAudioNodes(
+                    audioContextRef.current,
+                    globalGainRef.current,
+                    trackId,
+                    {
+                        id: (originalTrack ? originalTrack.id : undefined) as number, //FIXME: this might cause problems
+                        name: originalTrack ? originalTrack.name : name,
+                        source: originalTrack ? originalTrack.source : url,
+                        source_expiration: originalTrack ? originalTrack.source_expiration : null,
+                        size: originalTrack ? originalTrack.size : 0,
+                    },
+                    shuffle ?? track?.shuffle ?? false,
+                    repeatMode ?? track?.repeatMode ?? "repeat-all",
+                    loadedTrack => {
+                        if (previousAudioElements?.audio != undefined) {
+                            loadedTrack.audioElements.gain.gain.setValueAtTime(previousAudioElements.gain.gain.value, 0);
+                            loadedTrack.audioElements.audio.play();
+                        }
+                        resolve(loadedTrack);
+                    },
+                    err => reject(err ?? new Error("Audio failed to load")),
+                    () => {
+                        const elements = audioElementsRef.current[id];
+                        if (elements == undefined) {
+                            logging.warn(`Track elements for ${trackId} were removed before processing onEnd()`);
+                            return;   
+                        }
+                        if (elements.nextTrack == undefined) {
+                            setPlaying(prev => (prev[id] == undefined ? prev : {
+                                ...prev, 
+                                [id]: {...prev[id], updateCount: prev[id].updateCount+1 }
+                            }));
+                            return;
+                        }
+                        loadOnlineTrack(elements.nextTrack).then(nextTrack => {
+                            loadTrack(id, nextTrack.source!, nextTrack.name, nextTrack.id?.toString?.());
+                        });
+                    }
+                );
+                audioElementsRef.current[id] = audioElements;
+                return {
+                    ...prev,
+                    [id]: newTrack,
+                };
             });
         });
+    }, [loadOnlineTrack, tracks]);
+
+    const updateTrack = useCallback((id: string, trackId: string, shuffle?: boolean, repeatMode?: RepeatMode) => {
+        setPlaying(prev => {            
+            const track = prev[id]; 
+            if (track == undefined) {
+                logging.warn(`Tried to update an unknown track (${trackId} in channel ${id})`);
+                return prev;
+            }
+            track.updateCount++;
+            
+            if (shuffle != undefined) {
+                track.shuffle = shuffle;
+            }
+            if (repeatMode != undefined) {
+                track.repeatMode = repeatMode;
+            }
+            
+            return {
+                ...prev,
+                [id]: track,
+            };
+        });  
     }, []);
 
     const getTrack = useCallback((id: string) => {
@@ -260,7 +357,10 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
             getTrackElements,
             unloadTrack,
             loadTrack,
+            updateTrack,
             setVolume,
+            getNextTrack,
+            getPreviousTrack,
             volume
         }}
     >
@@ -277,10 +377,13 @@ export function useAudio() {
 export function useAudioControls(channel: string): AudioPlayerControls {
     const {
         loadTrack,
+        updateTrack,
         getTrack,
         getTrackElements,
+        getNextTrack,
+        getPreviousTrack,
     } = useAudio();
-    const { tracks: _tracks, shuffledTracks: _shuffledTracks, loadOnlineTrack } = useTracks();
+    const { loadOnlineTrack } = useTracks();
     const [id, setId] = useState<string|null>(null);
     const [src, setSrc] = useState<string|null>(null);
     const [playing, setPlaying] = useState(false);
@@ -292,15 +395,7 @@ export function useAudioControls(channel: string): AudioPlayerControls {
     const [position, setPosition] = useState<number|null>(null);
     const [name, setName] = useState<string|null>(null);
     const [error, setError] = useState<Error|MediaError|null>(null);
-    const [trackIndex, setTrackIndex] = useState<number|null>(null);
-
-    const tracks = useMemo(() => {
-        return _tracks.get(channel) ?? [];
-    }, [_tracks, channel]);
-    const shuffledTracks = useMemo(() => {
-        return _shuffledTracks.get(channel) ?? [];
-    }, [_shuffledTracks, channel]);
-
+    
     useEffect(() => {
         let raf: number;
         const trackElements = getTrackElements(channel);
@@ -308,6 +403,9 @@ export function useAudioControls(channel: string): AudioPlayerControls {
 
         const updatePosition = () => {
             setPosition(trackElements.audio.currentTime);
+            if (!isNaN(trackElements.audio.duration)) {
+                setDuration(trackElements.audio.duration);
+            }
             raf = requestAnimationFrame(updatePosition);
         };
 
@@ -316,7 +414,7 @@ export function useAudioControls(channel: string): AudioPlayerControls {
         return () => {
             cancelAnimationFrame(raf);
         };
-    }, [channel, getTrackElements]);
+    }, [channel, getTrackElements, getTrack, id]);
 
     useEffect(() => {
         const track = getTrack(channel);
@@ -324,9 +422,9 @@ export function useAudioControls(channel: string): AudioPlayerControls {
         if (!trackElements || !track) return;
         setId(track.id);
         setSrc(trackElements.audio.src);
-        setName(track.name);
+        setName(track.track.name);
         setError(trackElements.audio.error);
-        _setVolume(trackElements.gain.gain.value);
+        _setVolume(prev => prev == 1 ? trackElements.gain.gain.value : prev);
         _setShuffle(track.shuffle);
         _setRepeatMode(track.repeatMode);
         if (trackElements.audio.readyState >= HTMLMediaElement.HAVE_METADATA) {
@@ -337,22 +435,7 @@ export function useAudioControls(channel: string): AudioPlayerControls {
             setPosition(trackElements.audio.currentTime);
             setPlaying(!trackElements.audio.paused);
         }
-    }, [channel, getTrack, getTrackElements]);
-
-    useEffect(() => {
-        if (shuffle) {
-            const index = shuffledTracks.findIndex(track => track.id.toString() == id);
-            setTrackIndex(
-                index == -1 ? null : index
-            );
-        }
-        else {
-            const index = tracks.findIndex(track => track.id.toString() == id);
-            setTrackIndex(
-                index == -1 ? null : index
-            );
-        }
-    }, [id, shuffle, shuffledTracks, tracks]);
+    }, [channel, updateTrack, getTrack, getTrackElements, id]);
 
     const load = useCallback(async (src: string, name: string, id?: string) => {
         if (src == undefined) return;
@@ -365,14 +448,17 @@ export function useAudioControls(channel: string): AudioPlayerControls {
         setPosition(0);
         setError(null);
         try {
-            const track = await loadTrack(channel, src, name, trackId);
+            const track = await loadTrack(channel, src, name, trackId, shuffle, repeatMode);
             setLoaded(true);
             setDuration(track.audioElements.audio.duration);
+            if (playing) {
+                await track.audioElements.audio.play();
+            }
         } catch (error) {
             setError(error as MediaError);
             throw error;
         }
-    }, [channel, loadTrack]);
+    }, [channel, shuffle, repeatMode, playing, loadTrack]);
 
     const reload = useCallback(async () => {
         if (src == undefined) return;
@@ -382,14 +468,17 @@ export function useAudioControls(channel: string): AudioPlayerControls {
         setPosition(0);
         setError(null);
         try {
-            const track = await loadTrack(channel, src, name ?? "N/A");
+            const track = await loadTrack(channel, src, name ?? "N/A", id!, shuffle, repeatMode);
             setLoaded(true);
             setDuration(track.audioElements.audio.duration);
+            if (playing) {
+                await track.audioElements.audio.play();
+            }
         } catch (error) {
             setError(error as MediaError);
             throw error;
         }
-    }, [channel, loadTrack, src, name]);
+    }, [channel, id, shuffle, repeatMode, playing, loadTrack, src, name]);
 
     const play = useCallback(async () => {
         const trackElements = getTrackElements(channel);
@@ -479,17 +568,17 @@ export function useAudioControls(channel: string): AudioPlayerControls {
         const track = getTrack(channel);
         if (!track) return;
 
-        loadTrack(channel, track.sourceURL, track.name, track.id, shuffle, track.repeatMode);
+        updateTrack(channel, track.id, shuffle, track.repeatMode);
         _setShuffle(shuffle);
-    }, [channel, getTrack, loadTrack]);
+    }, [channel, getTrack, updateTrack]);
 
     const setRepeatMode = useCallback((repeatMode: RepeatMode) => {
         const track = getTrack(channel);
         if (!track) return;
 
-        loadTrack(channel, track.sourceURL, track.name, track.id, track.shuffle, repeatMode);
+        updateTrack(channel, track.id, track.shuffle, repeatMode);
         _setRepeatMode(repeatMode);
-    }, [channel, getTrack, loadTrack]);
+    }, [channel, getTrack, updateTrack]);
 
     const seek = useCallback((time: number) => {
         const trackElements = getTrackElements(channel);
@@ -498,26 +587,19 @@ export function useAudioControls(channel: string): AudioPlayerControls {
         trackElements.audio.currentTime = time;
     }, [channel, getTrackElements]);
 
-    const next = useCallback(async () => {
-        if (trackIndex == null) return;
-        
-        const actualTracks = shuffle ? shuffledTracks : tracks;
-        const nextTrackIndex = mod((trackIndex + 1), actualTracks.length);
-        const nextTrack = actualTracks[nextTrackIndex];
+    const next = useCallback(async () => {        
+        const nextTrack = getNextTrack(channel);
+        if (nextTrack == null) return;
         const updatedTrack = await loadOnlineTrack(nextTrack);
         return await load(updatedTrack.source!, updatedTrack.name, updatedTrack.id?.toString?.() ?? uuid());
-    }, [shuffle, shuffledTracks, tracks, trackIndex, load, loadOnlineTrack]);
+    }, [channel, getNextTrack, load, loadOnlineTrack]);
 
     const prev = useCallback(async () => {
-        if (trackIndex == null) return;
-
-        const actualTracks = shuffle ? shuffledTracks : tracks;
-        const nextTrackIndex = mod((trackIndex - 1), actualTracks.length);
-        const nextTrack = actualTracks[nextTrackIndex];
-        console.log(nextTrackIndex, nextTrack);
-        const updatedTrack = await loadOnlineTrack(nextTrack);
+        const prevTrack = getPreviousTrack(channel);
+        if (prevTrack == null) return;
+        const updatedTrack = await loadOnlineTrack(prevTrack);
         return await load(updatedTrack.source!, updatedTrack.name, updatedTrack.id?.toString?.() ?? uuid());
-    }, [shuffle, shuffledTracks, tracks, trackIndex, load, loadOnlineTrack]);
+    }, [channel, getPreviousTrack, load, loadOnlineTrack]);
 
     return useMemo(() => ({
         id,
@@ -527,7 +609,6 @@ export function useAudioControls(channel: string): AudioPlayerControls {
         volume,
         loaded,
         duration,
-        trackIndex,
         shuffle,
         repeatMode,
         error,
@@ -552,7 +633,6 @@ export function useAudioControls(channel: string): AudioPlayerControls {
         volume,
         loaded,
         duration,
-        trackIndex,
         shuffle,
         repeatMode,
         error,
