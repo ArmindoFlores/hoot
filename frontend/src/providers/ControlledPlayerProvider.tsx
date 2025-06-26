@@ -7,6 +7,7 @@ import { logging } from "../logging";
 export interface AudioObject {
     id: string;
     gain: GainNode;
+    playerGain: GainNode;
     audio: HTMLAudioElement;
     source: MediaElementAudioSourceNode;
     onLoad?: () => void;
@@ -37,6 +38,7 @@ function cleanupAudioNodes(elements: AudioObject) {
     elements.audio.load();
     elements.source.disconnect();
     elements.gain.disconnect();
+    elements.playerGain.disconnect();
 }
 
 function setupAudioNodes(
@@ -49,6 +51,8 @@ function setupAudioNodes(
 ): AudioObject {
     const gainNode = context.createGain();
     gainNode.gain.setValueAtTime(1, 0);
+    const playerGainNode = context.createGain();
+    playerGainNode.gain.setValueAtTime(1, 0);
     const audio = new Audio(track.source!);
     const source = context.createMediaElementSource(audio);
     audio.crossOrigin = "anonymous";
@@ -61,6 +65,7 @@ function setupAudioNodes(
     const trueOnLoad = onLoad ? () => onLoad({
         id,
         gain: gainNode,
+        playerGain: playerGainNode,
         audio,
         source,
         onLoad: trueOnLoad,
@@ -76,11 +81,12 @@ function setupAudioNodes(
 
     audio.preload = "auto";
     audio.load();
-    source.connect(gainNode).connect(globalGain);
+    source.connect(gainNode).connect(playerGainNode).connect(globalGain);
 
     return {
         id,
         gain: gainNode,
+        playerGain: playerGainNode,
         audio,
         source,
         onLoad: trueOnLoad,
@@ -93,6 +99,8 @@ export function ControlledPlayerProvider({ children }: { children: React.ReactNo
     const globalGainRef = useRef<GainNode>();
     const [playing, setPlaying] = useState<Record<string, AudioObject|null>>({});
     const [volume, setVolume] = useState(1);
+
+    logging.info("Successfully created an Audio Context");
 
     useEffect(() => {
         const context = audioContextRef.current;

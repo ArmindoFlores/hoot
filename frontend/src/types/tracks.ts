@@ -2,6 +2,7 @@ export type RepeatMode = "no-repeat" | "repeat-all" | "repeat-self";
 
 export interface PlayerTrack {
     playlist: string;
+    id: string;
     name: string;
     source: string;
     playing: boolean;

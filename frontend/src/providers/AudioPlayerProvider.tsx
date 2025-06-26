@@ -182,6 +182,8 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     const [playing, setPlaying] = useState<Record<string, AudioObject|null>>({});
     const [volume, setVolume] = useState(1);
     const [triggeredEventCount, setTriggeredEventCount] = useState(0);
+    
+    logging.info("Successfully created an Audio Context");
 
     useEffect(() => {
         const context = audioContextRef.current;
@@ -210,13 +212,14 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
                         const audioElement = audioElementsRef.current[playlist];
                         return {
                             playlist,
+                            id: (track?.track?.id ? String(track?.track?.id) : undefined) as string,
                             name: track?.track?.name as string,
                             source: audioElement?.audio?.src,
                             playing: !(audioElement?.audio?.paused ?? true),
                             position: audioElement?.audio?.currentTime ?? 0,
                             volume: audioElement?.gain?.gain?.value,
                         };
-                    }).filter(track => track.source != undefined && track.name != undefined)
+                    }).filter(track => track.source != undefined && track.name != undefined && track.id != undefined)
                 } 
             },
             undefined,
@@ -325,6 +328,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
                             loadedTrack.audioElements.audio.play();
                         }
                         resolve(loadedTrack);
+                        triggerEvent();
                     },
                     err => reject(err ?? new Error("Audio failed to load")),
                     () => {
@@ -352,7 +356,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
                 };
             });
         });
-    }, [loadOnlineTrack, tracks]);
+    }, [loadOnlineTrack, tracks, triggerEvent]);
 
     const updateTrack = useCallback((id: string, trackId: string, shuffle?: boolean, repeatMode?: RepeatMode) => {
         setPlaying(prev => {            
