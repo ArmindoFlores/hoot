@@ -4,6 +4,7 @@ import { useOBRBase, useOBRSelf } from "./hooks";
 import { AddTrackView } from "./views/AddTrackView";
 import { AudioPlayerProvider } from "./providers/AudioPlayerProvider";
 import { AuthProvider } from "./providers/AuthProvider";
+import { ControlledPlayerProvider } from "./providers/ControlledPlayerProvider";
 import { GMView } from "./views/GMView";
 import { ImportLocalTracksModal } from "./views/ImportLocalTracksView";
 import { OBRThemeProvider } from "./providers/OBRThemeProvider";
@@ -66,7 +67,9 @@ function MainApp({ proxy = false }: { proxy?: boolean }) {
         </PersistQueryClientProvider>;
     }
     else {
-        return <PlayerView />;
+        return <ControlledPlayerProvider>
+            <PlayerView />
+        </ControlledPlayerProvider>;
     }
 }
 

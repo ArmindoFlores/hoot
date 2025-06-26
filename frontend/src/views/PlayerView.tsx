@@ -1,25 +1,27 @@
-import { Box, Button, Collapse, IconButton, Slider, Typography } from "@mui/material";
-import { FadeObject, MessageContent } from "../types/messages";
+import { Box, Button, Card, Collapse, IconButton, Slider, Typography } from "@mui/material";
 import { PlayerSettingsProvider, usePlayerSettings } from "../providers/PlayerSettingsProvider";
 import { faVolumeHigh, faVolumeLow, faVolumeMute, faVolumeOff } from "@fortawesome/free-solid-svg-icons";
 import { fadeInVolume, fadeOutVolume } from "../utils";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useOBRBroadcast, useOBRPlayers } from "../hooks/obr";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { APP_KEY } from "../config";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { INTERNAL_BROADCAST_CHANNEL } from "../config";
+import { MessageContent } from "../types/messages";
 import OBR from "@owlbear-rodeo/sdk";
-import { SimpleTrack } from "../types/tracks";
+import { PlayerTrack } from "../types/tracks";
 import { logging } from "../logging";
+import { useControlledAudio } from "../providers/ControlledPlayerProvider";
+import { useOBRBroadcast } from "../hooks/obr";
 
-type TrackWithDuration = SimpleTrack & { duration?: number };
 interface PlayerAudioIndicatorProps {
     playlist: string;
     globalVolume: number;
-    track?: SimpleTrack;
+    track?: PlayerTrack;
     autoplayError: () => void;
-    triggerPlayback: boolean;
+    triggerPlayback: number;
 }
+
+type TrackWithDuration = PlayerTrack & { duration?: number };
 
 function PlayerAudioIndicator({ 
     playlist,
@@ -28,22 +30,15 @@ function PlayerAudioIndicator({
     autoplayError,
     triggerPlayback
 }: PlayerAudioIndicatorProps) {
+    const { loadTrack, unloadTrack } = useControlledAudio();
     const { registerMessageHandler } = useOBRBroadcast<MessageContent>();
     const { playlistVolume, setPlaylistVolume } = usePlayerSettings();
     const audioRef = useRef<HTMLAudioElement>(null);
     
-    const [ trackWithDuration, setTrackWithDuration ] = useState<TrackWithDuration|undefined>(track);
+    const [ duration, setDuration ] = useState<number|null>(null);
     const [ loaded, setLoaded ] = useState(false);
     const [ fading, setFading ] = useState(false);
-    const [ fade, setFade ] = useState<FadeObject>();
-
-    const setPlaybackTime = (time: number) => {
-        setTrackWithDuration(old => old ? { ...old, time } : old);
-    }
-
-    const setIsPlaying = (playing: boolean) => {
-        setTrackWithDuration(old => old ? { ...old, playing } : old);
-    }
+    const [ fade, setFade ] = useState();
 
     const playTrack = useCallback(() => {
         audioRef.current!.play().catch((reason: DOMException) => {
@@ -67,178 +62,67 @@ function PlayerAudioIndicator({
     }, [autoplayError, trackWithDuration?.name]);
 
     useEffect(() => {
-        if (loaded && audioRef.current && trackWithDuration && !fading) {
-            audioRef.current.volume = globalVolume * (trackWithDuration.volume ?? 0.75) * (playlistVolume ?? 0.75);
-        }
-    }, [globalVolume, trackWithDuration, loaded, fading, playlistVolume]);
+        if (track == undefined) return;
 
-    useEffect(() => {
-        if (audioRef.current && track) {
-            const timeOffset = Math.abs(audioRef.current.currentTime - track.time);
-            if (timeOffset > 1) {
-                audioRef.current.currentTime = track.time;
-            }
-        }
-        setTrackWithDuration(old => {
-            if (old === undefined) {
-                return track;
-            }
-            if (old.name === track?.name && old.source === track?.source) {
-                return {
-                    ...track,
-                    duration: old.duration
-                };
-            }
-            setLoaded(false);
-            return track;
-        });
-    }, [track]);
+        loadTrack(track.playlist, track.source, track.name, track.name).then(audioObject => {
+        })
+    }, []);
 
-    useEffect(() => {
-        if (loaded && !fading) {
-            if (trackWithDuration!.playing) {
-                playTrack();
-            }
-            else {
-                audioRef.current!.pause();
-            }
-        }
-    }, [loaded, trackWithDuration, triggerPlayback, fading, playTrack]);
+    // useEffect(() => {
+    //     const audioElement = audioRef.current;
+    //     if (audioElement) {
+    //         const handleTimeUpdate = () => {
+    //             setPlaybackTime(audioElement.currentTime);
+    //         };
 
-    useEffect(() => {
-        if (loaded) {
-            setTrackWithDuration(old => old ? { ...old, duration: audioRef.current?.duration } : old );
-        }
-    }, [loaded]);
+    //         audioElement.addEventListener("timeupdate", handleTimeUpdate);
 
-    useEffect(() => {
-        const audioElement = audioRef.current;
-        if (audioElement) {
-            const handleTimeUpdate = () => {
-                setPlaybackTime(audioElement.currentTime);
-            };
+    //         return () => audioElement.removeEventListener("timeupdate", handleTimeUpdate);
+    //     }
+    // }, [trackWithDuration?.name, trackWithDuration?.source]);
 
-            audioElement.addEventListener("timeupdate", handleTimeUpdate);
-
-            return () => audioElement.removeEventListener("timeupdate", handleTimeUpdate);
-        }
-    }, [trackWithDuration?.name, trackWithDuration?.source]);
-
-    useEffect(() => {
-        return registerMessageHandler(`${APP_KEY}/internal`, message => {
-            if (message.type === "fade") {
-                const fadeObject = message.payload;
-                if (fadeObject.playlist !== playlist) return;
-                setFade(fadeObject);
-            }
-        });
-    }, [playlist, registerMessageHandler]);
-
-    useEffect(() => {
-        if (fade == undefined || fade.fade != "in") return;
-        if (fading || (trackWithDuration?.volume ?? 0) <= 0) return;
-        
-        setFading(true);
-        setFade(undefined);
-        const audio = audioRef.current!;
-        audio.volume = 0;
-        playTrack();
-        setIsPlaying(true);
-
-        const targetVolume = trackWithDuration!.volume;
-        const interval = 50;
-        const steps = fade.duration / interval;
-
-        let currentStep = 0;
-
-        const fadeAudio = setInterval(() => {
-            if (currentStep < steps) {
-                audio.volume = fadeInVolume(targetVolume, currentStep, steps) * globalVolume;
-                currentStep++;
-            } else {
-                clearInterval(fadeAudio);
-                setFading(false);
-                setFade(undefined);
-            }
-        }, interval);
-    }, [fade, fading, globalVolume, playTrack, trackWithDuration]);
-
-    useEffect(() => {
-        if (fade == undefined || fade.fade != "out") return;
-        if (fading || (trackWithDuration?.volume ?? 0) <= 0) return;
-        
-        setFading(true);
-        setFade(undefined);
-        const audio = audioRef.current!;
-
-        const initialVolume = trackWithDuration!.volume;
-        const interval = 50;
-        const steps = fade.duration / interval;
-
-        let currentStep = 0;
-
-        const fadeAudio = setInterval(() => {
-            if (currentStep <= steps) {
-                audio.volume = fadeOutVolume(initialVolume, currentStep, steps) * globalVolume;
-                currentStep++;
-            } else {
-                audio.pause();
-                setIsPlaying(false);
-                clearInterval(fadeAudio);
-                setFading(false);
-                setFade(undefined);
-            }
-        }, interval);
-    }, [fade, fading, globalVolume, trackWithDuration]);
-
-    return <div key={playlist} className="audio-indicator">
-        <audio src={trackWithDuration?.source} ref={audioRef} onCanPlayThrough={() => setLoaded(true)} />
-        <div className="audio-indicator-top-row">
-            <p style={{fontWeight: "bold"}}>{ playlist } </p>
-            <div style={{ display: "flex", flexDirection: "row", alignItems: "center" }}>
-                <FontAwesomeIcon icon={faVolumeHigh} style={{opacity: trackWithDuration?.playing ? 1 : 0, paddingRight: "1rem"}} />
-                <div className="horizontal-volume-slider-container">
-                    <Slider
-                        min={0}
-                        max={100}
-                        value={playlistVolume * 100}
-                        onChange={(_, value) => setPlaylistVolume(value as number / 100)}
-                        orientation="horizontal"
-                    />
-                </div>
-            </div>
-        </div>
-        <div className="progressbar-container">
-            {
-                trackWithDuration && 
+    return <Card key={playlist} sx={{ p: 2, mb: 1 }}>
+        <Box sx={{ display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <Typography sx={{flex: 2}} fontWeight="bold">{ playlist } </Typography>
+            <Box sx={{ display: "flex", flexDirection: "row", alignItems: "center", flex: 1, gap: 2 }}>
+                <FontAwesomeIcon icon={faVolumeHigh} style={{opacity: trackWithDuration?.playing ? 1 : 0}} />
                 <Slider
+                    size="small"
+                    value={playlistVolume * 100}
+                    onChange={(_, value) => setPlaylistVolume(value as number / 100)}
                     orientation="horizontal"
-                    min={0}
-                    max={500}
-                    value={trackWithDuration.duration ? (trackWithDuration.time / trackWithDuration.duration * 500) : 0}
-                    disabled
                 />
-            }
-        </div>
-    </div>;
+            </Box>
+        </Box>
+        {
+            trackWithDuration && 
+            <Slider
+                size="small"
+                orientation="horizontal"
+                value={trackWithDuration.duration ? (trackWithDuration.position / trackWithDuration.duration * 100) : 0}
+                disabled
+            />
+        }
+    </Card>;
 }
 
 export function PlayerView() {
+    const {
+        volume,
+        setVolume,
+    } = useControlledAudio();
     const { registerMessageHandler, sendMessage } = useOBRBroadcast<MessageContent>();
-    const party = useOBRPlayers();
 
-    const [ playlists, setPlaylists ] = useState<string[]>([]);
-    const [ tracks, setTracks ] = useState<Record<string, TrackWithDuration>>({});
-    const [ GMIDs, setGMIDs ] = useState<string[]>([]);
-    const [ setup, setSetup ] = useState(false);
-    const [ volume, setVolume ] = useState(0.5);
-    const [ previousVolume, setPreviousVolume ] = useState(0.5);
+    const [ tracks, setTracks ] = useState<Record<string, PlayerTrack>>({});
+    const [ previousVolume, setPreviousVolume ] = useState(volume);
     const [ volumeHovered, setVolumeHovered ] = useState(false);
     const [ mute, setMute ] = useState(false);
     const [ autoplayErrorOccurred, setAutoplayErrorOccurred ] = useState(false);
-    const [ triggerPlayback, setTriggerPlayback ] = useState(false);
+    const [ triggerPlayback, setTriggerPlayback ] = useState(0);
 
-    const toggleMute = () => {
+    const playlists = useMemo(() => Object.keys(tracks), [tracks]);
+
+    const toggleMute = useCallback(() => {
         if (volume === 0) {
             setVolume(previousVolume);
         }
@@ -247,13 +131,12 @@ export function PlayerView() {
             setMute(true);
             setVolume(0);
         }
-    }
+    }, [previousVolume, volume, setVolume]);
 
-    const restartPlayback = () => { 
-        sendMessage(`${APP_KEY}/internal`, { type: "get-playlists" }, GMIDs);
+    const restartPlayback = useCallback(() => { 
         setAutoplayErrorOccurred(false); 
-        setTriggerPlayback(old => !old); 
-    }
+        setTriggerPlayback(old => old+1); 
+    }, []);
 
     useEffect(() => {
         if (volume !== 0) {
@@ -262,47 +145,21 @@ export function PlayerView() {
     }, [volume]);
 
     useEffect(() => {
-        return registerMessageHandler(`${APP_KEY}/internal`, message => {
-            if (message.type === "track") {
-                const track = message.payload as SimpleTrack;
-                setTracks(oldTracks => {
-                    const prev = oldTracks[track.playlist];
-                    if (prev && prev.name === track.name && prev.source == track.source) {
-                        return {...oldTracks, [track.playlist]: { ...prev, ...track } }    
-                    }
-                    return {...oldTracks, [track.playlist]: track }
-                });
-            }
-            else if (message.type === "playlists") {
-                const newPlaylists = message.payload as string[];
-                for (const playlist of newPlaylists) {
-                    if (!playlists.includes(playlist)) {
-                        sendMessage(`${APP_KEY}/internal`, { type: "get-track", payload: playlist }, GMIDs);
-                    }
-                }
-                setPlaylists(newPlaylists);
-            }
-            else if (message.type === "fade") {
-                // Handled by children
+        logging.info("Registered message handler.");
+        return registerMessageHandler(INTERNAL_BROADCAST_CHANNEL, message => {
+            logging.info("Received message:", message);
+            if (message.type === "playing") {
+                setTracks(
+                    Object.fromEntries(
+                        message.payload.playing.map(track => ([track.playlist, track]))
+                    )
+                );
             }
             else {
                 logging.error(`Received invalid message of type '${message.type}':`, message);
             }
         });
-    }, [GMIDs, playlists, sendMessage, registerMessageHandler]);
-
-    useEffect(() => {
-        if (!setup && party && party.length >= 1) {
-            const GMs = party.filter(player => player.role === "GM");
-            if (GMs.length == 0) {
-                return;
-            }
-            const GMIDs = GMs.map(gm => gm.id);
-            sendMessage(`${APP_KEY}/internal`, { type: "get-playlists" }, GMIDs);
-            setSetup(true);
-            setGMIDs(GMIDs);
-        }
-    }, [party, setup, sendMessage]);
+    }, [registerMessageHandler]);
 
     return <Box sx={{ p: 2 }}>
         <Box>
@@ -347,8 +204,9 @@ export function PlayerView() {
             }}
         >
             <Collapse in={volumeHovered}>
-                <Box sx={{ height: "7rem", pb: 1, pt: 2 }}>
+                <Box sx={{ height: "7rem", pb: 1, pt: 2, display: "flex", flexDirection: "column", alignItems: "center" }}>
                     <Slider
+                        size="small"
                         min={0}
                         max={100}
                         value={(volume ?? 0) * 100}

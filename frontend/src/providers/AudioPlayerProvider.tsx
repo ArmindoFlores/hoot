@@ -2,8 +2,12 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { RepeatMode, Track } from "../types/tracks";
 
+import { INTERNAL_BROADCAST_CHANNEL } from "../config";
+import { MessageContent } from "../types/messages";
 import { logging } from "../logging";
 import uniqueId from "lodash/uniqueId";
+import { useOBRBroadcast } from "../hooks/obr";
+import { useThrottled } from "../hooks";
 import { useTracks } from "./TrackProvider";
 
 export interface AudioElements {
@@ -36,6 +40,7 @@ interface GlobalAudioContextType {
     getNextTrack: (id: string) => Track|null;
     getPreviousTrack: (id: string) => Track|null;
     setVolume: (volume: number) => void;
+    triggerEvent: () => void;
 }
 
 interface AudioPlayerControls {
@@ -170,11 +175,13 @@ function setupAudioNodes(
 
 export function AudioPlayerProvider({ children }: { children: React.ReactNode }) {
     const { tracks, shuffledTracks, loadOnlineTrack } = useTracks();
+    const { sendMessage } = useOBRBroadcast<MessageContent>();
     const audioContextRef = useRef(new AudioContext());
     const globalGainRef = useRef<GainNode>();
     const audioElementsRef = useRef<Record<string, AudioElements>>({});
     const [playing, setPlaying] = useState<Record<string, AudioObject|null>>({});
-    const [volume, setVolume] = useState<number>(1);
+    const [volume, setVolume] = useState(1);
+    const [triggeredEventCount, setTriggeredEventCount] = useState(0);
 
     useEffect(() => {
         const context = audioContextRef.current;
@@ -192,6 +199,34 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         if (globalGainRef.current == undefined) return;
         globalGainRef.current.gain.value = volume;
     }, [volume]);
+
+    useEffect(() => {
+        sendMessage(
+            INTERNAL_BROADCAST_CHANNEL,
+            { 
+                type: "playing",
+                payload: { 
+                    playing: Object.entries(playing).map(([playlist, track]) => {
+                        const audioElement = audioElementsRef.current[playlist];
+                        return {
+                            playlist,
+                            name: track?.track?.name as string,
+                            source: audioElement?.audio?.src,
+                            playing: !(audioElement?.audio?.paused ?? true),
+                            position: audioElement?.audio?.currentTime ?? 0,
+                            volume: audioElement?.gain?.gain?.value,
+                        };
+                    }).filter(track => track.source != undefined && track.name != undefined)
+                } 
+            },
+            undefined,
+            "ALL"
+        );
+    }, [playing, sendMessage, triggeredEventCount]);
+
+    const triggerEvent = useCallback(() => {
+        setTriggeredEventCount(old => old + 1);
+    }, []);
 
     const getNextTrack = useCallback((id: string, respectRepeatMode: boolean = false) => {
         const current = playing[id];
@@ -361,7 +396,8 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
             setVolume,
             getNextTrack,
             getPreviousTrack,
-            volume
+            volume,
+            triggerEvent,
         }}
     >
         {children}
@@ -382,7 +418,9 @@ export function useAudioControls(channel: string): AudioPlayerControls {
         getTrackElements,
         getNextTrack,
         getPreviousTrack,
+        triggerEvent,
     } = useAudio();
+    const throttledTriggerEvent = useThrottled(triggerEvent, 100, "trailing");
     const { loadOnlineTrack } = useTracks();
     const [id, setId] = useState<string|null>(null);
     const [src, setSrc] = useState<string|null>(null);
@@ -457,8 +495,10 @@ export function useAudioControls(channel: string): AudioPlayerControls {
         } catch (error) {
             setError(error as MediaError);
             throw error;
+        } finally {
+            triggerEvent();
         }
-    }, [channel, shuffle, repeatMode, playing, loadTrack]);
+    }, [channel, shuffle, repeatMode, playing, loadTrack, triggerEvent]);
 
     const reload = useCallback(async () => {
         if (src == undefined) return;
@@ -477,8 +517,10 @@ export function useAudioControls(channel: string): AudioPlayerControls {
         } catch (error) {
             setError(error as MediaError);
             throw error;
+        } finally {
+            triggerEvent();
         }
-    }, [channel, id, shuffle, repeatMode, playing, loadTrack, src, name]);
+    }, [channel, id, shuffle, repeatMode, playing, loadTrack, src, name, triggerEvent]);
 
     const play = useCallback(async () => {
         const trackElements = getTrackElements(channel);
@@ -490,15 +532,18 @@ export function useAudioControls(channel: string): AudioPlayerControls {
         catch (error) {
             setError(error as MediaError);
             throw error;   
+        } finally {
+            triggerEvent();
         }
-    }, [channel, getTrackElements]);
+    }, [channel, getTrackElements, triggerEvent]);
 
     const pause = useCallback(() => {
         const trackElements = getTrackElements(channel);
         if (!trackElements) return;
         trackElements.audio.pause();
         setPlaying(false);
-    }, [channel, getTrackElements]);
+        triggerEvent();
+    }, [channel, getTrackElements, triggerEvent]);
 
     const fadeIn = useCallback((duration: number): Promise<void> => {
         return new Promise((resolve, reject) => {
@@ -510,7 +555,6 @@ export function useAudioControls(channel: string): AudioPlayerControls {
                 return;
             }
 
-            logging.info(`[CHANNEL ${channel}] Fading in...`);
             const context = trackElements.gain.context;
             const now = context.currentTime;
 
@@ -525,9 +569,9 @@ export function useAudioControls(channel: string): AudioPlayerControls {
             }).catch(error => {
                 setError(error);
                 reject(error);
-            });
+            }).finally(triggerEvent);
         });
-    }, [channel, getTrackElements]);
+    }, [channel, getTrackElements, triggerEvent]);
 
     const fadeOut = useCallback((duration: number): Promise<void> => {
         return new Promise((resolve, reject) => {
@@ -542,7 +586,6 @@ export function useAudioControls(channel: string): AudioPlayerControls {
             const context = trackElements.gain.context;
             const now = context.currentTime;
 
-            logging.info(`[CHANNEL ${channel}] Fading out...`);
             trackElements.gain.gain.cancelScheduledValues(now);
             trackElements.gain.gain.linearRampToValueAtTime(0, now + duration / 1000);
         
@@ -550,9 +593,10 @@ export function useAudioControls(channel: string): AudioPlayerControls {
                 resolve();
                 setPlaying(false);
                 trackElements.audio.pause();
+                triggerEvent();
             }, duration);
         });
-    }, [channel, getTrackElements]);
+    }, [channel, getTrackElements, triggerEvent]);
 
     const setVolume = useCallback((volume: number) => {
         const trackElements = getTrackElements(channel);
@@ -562,7 +606,8 @@ export function useAudioControls(channel: string): AudioPlayerControls {
         const now = context.currentTime;
         trackElements.gain.gain.setValueAtTime(volume, now);
         _setVolume(volume);
-    }, [channel, getTrackElements]);
+        throttledTriggerEvent();
+    }, [channel, getTrackElements, throttledTriggerEvent]);
 
     const setShuffle = useCallback((shuffle: boolean) => {
         const track = getTrack(channel);
@@ -585,7 +630,8 @@ export function useAudioControls(channel: string): AudioPlayerControls {
         if (trackElements == undefined) return;
 
         trackElements.audio.currentTime = time;
-    }, [channel, getTrackElements]);
+        triggerEvent();
+    }, [channel, getTrackElements, triggerEvent]);
 
     const next = useCallback(async () => {        
         const nextTrack = getNextTrack(channel);

@@ -1,9 +1,9 @@
 import { Box, Tab, Tabs } from "@mui/material";
 import { useEffect, useState } from "react";
 
-import { APP_KEY } from "../config";
 import { AudioPlayerView } from "./AudioPlayerView";
 import { ExportView } from "./ExportView";
+import { INTERNAL_BROADCAST_CHANNEL } from "../config";
 import { MessageContent } from "../types/messages";
 import { SceneView } from "./SceneView";
 import { SettingsView } from "./Settings";
@@ -39,16 +39,16 @@ export function GMView() {
     const [selectedTab, setTab] = useState(0);
 
     useEffect(() => {
-        return registerMessageHandler(`${APP_KEY}/internal`, (message, sender) => {
+        return registerMessageHandler(INTERNAL_BROADCAST_CHANNEL, (message, sender) => {
             if (message.type === "get-playlists") {
-                sendMessage(`${APP_KEY}/internal`, { type: "playlists", payload: Object.keys(playing) }, [sender]);
+                sendMessage(INTERNAL_BROADCAST_CHANNEL, { type: "playlists", payload: Object.keys(playing) }, [sender]);
             }
             else if (message.type === "get-track") {
                 const playlist = message.payload;
                 const track = playing[playlist];
                 if (track !== undefined) {
                     sendMessage(
-                        `${APP_KEY}/internal`,
+                        INTERNAL_BROADCAST_CHANNEL,
                         {
                             type: "track",
                             payload: {

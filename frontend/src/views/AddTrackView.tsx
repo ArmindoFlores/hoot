@@ -52,7 +52,7 @@ export function AddTrackView() {
             return;
         }
         sendMessage(
-            `${APP_KEY}/internal`,
+            INTERNAL_BROADCAST_CHANNEL,
             {
                 type: "add-track",
                 payload: {

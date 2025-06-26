@@ -2,6 +2,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 
 import { APP_KEY } from "../config";
+import OBR from "@owlbear-rodeo/sdk";
+import { useOBRSelf } from "../hooks";
 
 const KEY = `${APP_KEY}/playlistVolumes`;
 
@@ -17,7 +19,7 @@ const PlayerSettingsContext = createContext<PlayerSettingsContextType>({
 export const usePlayerSettings = () => useContext(PlayerSettingsContext);
 
 export function PlayerSettingsProvider({ children, playlist }: { children: React.ReactNode, playlist?: string }) {
-    const { player, setPlayerMetadata } = useOBR();
+    const player = useOBRSelf();
 
     const [ playlistVolume, _setPlaylistVolume ] = useState(1);
 
@@ -27,8 +29,8 @@ export function PlayerSettingsProvider({ children, playlist }: { children: React
         const playlistVolumes = player?.metadata?.[KEY] as (Record<string, number>|undefined) ?? {};
         playlistVolumes[playlist] = volume;
 
-        setPlayerMetadata({ [KEY]: playlistVolumes });
-    }, [playlist, player, setPlayerMetadata]);
+        OBR.player.setMetadata({ [KEY]: playlistVolumes });
+    }, [playlist, player]);
 
     useEffect(() => {
         if (playlist == undefined) return;

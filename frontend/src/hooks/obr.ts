@@ -80,6 +80,12 @@ export function useOBRBroadcast<MessageDataType>() {
     const messageHandlers = useRef(new Map<string, ((message: MessageDataType, sender: string) => void)[]>());
     const [channels, setChannels] = useState<string[]>([]);
 
+    /** Send a message with `OBR.broadcast.sendMessage`
+    * @param channel which OBR channel to send message to
+    * @param message the message object to send
+    * @param recipients a list of recipients to send to; if `undefined`, sends to all possible clients
+    * @param destination send to "ALL" clients, only "REMOTE" clients, or only the "LOCAL" client (@default "ALL")
+    */
     const sendMessage = useCallback(async (channel: string, message: MessageDataType, recipients?: string[], destination?: "ALL" | "REMOTE" | "LOCAL") => {
         return await OBR.broadcast.sendMessage(
             channel,
@@ -92,28 +98,41 @@ export function useOBRBroadcast<MessageDataType>() {
     }, []);
 
     const registerMessageHandler = useCallback((channel: string, callback: (message: MessageDataType, sender: string) => void) => {
+        logging.info(`Registering handle on channel ${channel}`);
         if (!messageHandlers.current.has(channel)) {
+            logging.info("Channel currently has no listeners, adding one");
             messageHandlers.current.set(channel, []);
             setChannels(old => [...old, channel]);
         }
         messageHandlers.current.get(channel)?.push?.(callback);
         return () => {
+            logging.info(`Unmounting handler from channel ${channel}`);
             const handlers = messageHandlers.current.get(channel);
-            if (handlers == undefined) return;
+            if (handlers == undefined) {
+                logging.warn("No handlers to remove");
+                return;
+            }
             const newHandlers = handlers.filter(handler => handler != callback);
-            messageHandlers.current.set(channel, newHandlers);
-            if (newHandlers.length == 0) {
+            if (newHandlers.length > 0) {
+                messageHandlers.current.set(channel, newHandlers);
+            }
+            else {
+                logging.info("No more handlers, removing from set");
+                messageHandlers.current.delete(channel);
                 setChannels(old => old.filter(oldChannel => channel != oldChannel));
             }
         };
     }, []);
 
     useEffect(() => {
+        logging.info("Updating message handlers", channels);
         const unsubscriptionArray = channels.map(channel => OBR.broadcast.onMessage(channel, event => {
-            for (const handler of (messageHandlers.current.get(channel)) ?? []) {
+            logging.info(`Received message on channel ${channel} with ${(messageHandlers.current.get(channel) ?? []).length} handler(s)`);
+            for (const handler of messageHandlers.current.get(channel) ?? []) {
                 try {
                     const data = event.data as { data: MessageDataType, recipients: string[] };
                     if (data.recipients == undefined || data.recipients.includes(player?.connectionId ?? "")) {
+                        logging.info("-> Forwarding message to handler");
                         handler(data.data, event.connectionId);
                     }
                 }

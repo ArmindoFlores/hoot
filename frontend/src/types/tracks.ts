@@ -1,12 +1,12 @@
 export type RepeatMode = "no-repeat" | "repeat-all" | "repeat-self";
 
-export interface SimpleTrack {
+export interface PlayerTrack {
     playlist: string;
     name: string;
     source: string;
-    time: number;
-    volume: number;
     playing: boolean;
+    position: number;
+    volume: number;
 }
 
 export interface Track {

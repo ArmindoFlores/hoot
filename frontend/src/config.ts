@@ -3,6 +3,8 @@ export const PATREON_CLIENT_ID = import.meta.env.VITE_PATREON_CLIENT_ID;
 export const PATREON_REDIRECT_URI = `${ENDPOINT}/auth/oauth/redirect`;
 export const REVERSE_DOMAIN = "eu.armindo";
 export const APP_KEY = `${REVERSE_DOMAIN}.hoot`;
+export const INTERNAL_BROADCAST_CHANNEL = `${APP_KEY}/internal`;
+export const EXTERNAL_BROADCAST_CHANNEL = `${APP_KEY}/external`;
 
 export const STORAGE_KEYS = {
     TRACKS: "tracks",

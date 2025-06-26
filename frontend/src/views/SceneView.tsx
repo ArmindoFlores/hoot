@@ -247,7 +247,7 @@ export function SceneView() {
                     const currentlyPlaying = playing[playlist];
                     if (currentlyPlaying == undefined) continue;
                     sendMessage(
-                        `${APP_KEY}/internal`,
+                        INTERNAL_BROADCAST_CHANNEL,
                         { 
                             type: "fade",
                             payload: {
@@ -279,7 +279,7 @@ export function SceneView() {
                     continue;
                 }
                 sendMessage(
-                    `${APP_KEY}/internal`,
+                    INTERNAL_BROADCAST_CHANNEL,
                     {
                         type: "fade",
                         payload: {
