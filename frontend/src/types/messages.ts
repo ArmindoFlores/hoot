@@ -1,8 +1,10 @@
 import { PlayerTrack, RepeatMode, Track } from "./tracks";
 
+export type FadeType = "in" | "out";
+
 export interface FadeMessagePayload {
     playlist: string;
-    fade: "in" | "out";
+    fade: FadeType;
     duration: number;
 }
 

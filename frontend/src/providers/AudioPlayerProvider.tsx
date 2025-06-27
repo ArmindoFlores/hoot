@@ -562,11 +562,12 @@ export function useAudioControls(channel: string): AudioPlayerControls {
             const context = trackElements.gain.context;
             const now = context.currentTime;
 
+            const originalVolume = trackElements.gain.gain.value;
             trackElements.gain.gain.cancelScheduledValues(now);
             trackElements.gain.gain.setValueAtTime(0, now);
             trackElements.audio.play().then(() => {
                 setPlaying(true);
-                trackElements.gain.gain.linearRampToValueAtTime(1, now + duration / 1000);
+                trackElements.gain.gain.linearRampToValueAtTime(originalVolume, now + duration / 1000);
                 setTimeout(() => {
                     resolve();
                 }, duration);
@@ -590,6 +591,7 @@ export function useAudioControls(channel: string): AudioPlayerControls {
             const context = trackElements.gain.context;
             const now = context.currentTime;
 
+            const originalVolume = trackElements.gain.gain.value;
             trackElements.gain.gain.cancelScheduledValues(now);
             trackElements.gain.gain.linearRampToValueAtTime(0, now + duration / 1000);
         
@@ -597,6 +599,7 @@ export function useAudioControls(channel: string): AudioPlayerControls {
                 resolve();
                 setPlaying(false);
                 trackElements.audio.pause();
+                trackElements.gain.gain.setValueAtTime(originalVolume, now);
                 triggerEvent();
             }, duration);
         });

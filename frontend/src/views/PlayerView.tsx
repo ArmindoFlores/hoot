@@ -1,12 +1,12 @@
 import { AudioObject, useControlledAudio } from "../providers/ControlledPlayerProvider";
 import { Box, Button, Card, Collapse, IconButton, Slider, Typography } from "@mui/material";
+import { FadeMessagePayload, MessageContent } from "../types/messages";
 import { PlayerSettingsProvider, usePlayerSettings } from "../providers/PlayerSettingsProvider";
 import { faVolumeHigh, faVolumeLow, faVolumeMute, faVolumeOff } from "@fortawesome/free-solid-svg-icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { INTERNAL_BROADCAST_CHANNEL } from "../config";
-import { MessageContent } from "../types/messages";
 import OBR from "@owlbear-rodeo/sdk";
 import { PlayerTrack } from "../types/tracks";
 import { logging } from "../logging";
@@ -15,26 +15,30 @@ import { useOBRBroadcast } from "../hooks/obr";
 interface PlayerAudioIndicatorProps {
     playlist: string;
     globalVolume: number;
-    track?: PlayerTrack;
+    referenceTrack?: PlayerTrack;
     autoplayError: () => void;
     triggerPlayback: number;
 }
 
 function PlayerAudioIndicator({ 
     playlist,
-    track,
+    referenceTrack,
     autoplayError,
     triggerPlayback
 }: PlayerAudioIndicatorProps) {
+    const { registerMessageHandler } = useOBRBroadcast<MessageContent>();
     const { loadTrack, unloadTrack } = useControlledAudio();
     const { playlistVolume, setPlaylistVolume } = usePlayerSettings();
-    const trackId = useMemo(() => track?.id ?? null, [track?.id]);
     const prevTrackIdRef = useRef<string|null>(null);
     const audioObjectRef = useRef<AudioObject|null>(null);
-
+    
+    const [ track, setTrack ] = useState(referenceTrack);
+    const trackId = useMemo(() => track?.id ?? null, [track?.id]);
     const [ duration, setDuration ] = useState<number|null>(null);
     const [ position, setPosition ] = useState<number|null>(track?.position ?? null);
+    const [ fadeInQueue, setFadeInQueue ] = useState<FadeMessagePayload[]>([]);
     const [ loading, setLoading ] = useState(false);
+    const [ fading, setFading ] = useState(false);
 
     const playTrack = useCallback(async (audio: HTMLAudioElement, name: string) => {
         try {
@@ -62,6 +66,82 @@ function PlayerAudioIndicator({
     }, [autoplayError]);
 
     useEffect(() => {
+        setTrack(referenceTrack);
+    }, [referenceTrack]);
+
+    useEffect(() => {
+        return registerMessageHandler(INTERNAL_BROADCAST_CHANNEL, message => {
+            if (message.type === "fade") {
+                setFadeInQueue(queue => [message.payload, ...queue]);
+            }
+        });
+    }, [registerMessageHandler]);
+
+    useEffect(() => {
+        if (fadeInQueue.length == 0 || loading || track == undefined || fading) return;
+        setFadeInQueue(queue => {
+            if (audioObjectRef.current == null) return queue;
+            const message = queue.pop();
+            if (message == undefined) {
+                return queue;
+            }
+            else if (message.fade === "in") {
+                const duration = message.duration;
+                setFading(true);
+                const now = audioObjectRef.current.gain.context.currentTime;
+                const originalVolume = audioObjectRef.current.gain.gain.value;
+                audioObjectRef.current.gain.gain.cancelScheduledValues(now);
+                audioObjectRef.current.gain.gain.setValueAtTime(0, now);
+                playTrack(audioObjectRef.current.audio, track.name).then(() => {
+                    if (audioObjectRef.current != null) {
+                        audioObjectRef.current.gain.gain.linearRampToValueAtTime(originalVolume, now + duration / 1000);
+                        setTimeout(() => {
+                            setTrack(old => {
+                                if (old == undefined) return old;
+                                return {
+                                    ...old,
+                                    playing: true,
+                                    position: audioObjectRef.current?.audio?.currentTime ?? old.position,
+                                    volume: originalVolume
+                                }
+                            });
+                            setFading(false);
+                        }, duration);
+                    }
+                    else {
+                        setFading(false);
+                    }
+                }).catch(() => setFading(false));
+            }
+            else if (message.fade === "out") {
+                const duration = message.duration;
+                setFading(true);
+                const now = audioObjectRef.current.gain.context.currentTime;
+                const originalVolume = audioObjectRef.current.gain.gain.value;
+                audioObjectRef.current.gain.gain.cancelScheduledValues(now);
+                audioObjectRef.current.gain.gain.linearRampToValueAtTime(0, now + duration / 1000);
+                setTimeout(() => {
+                    if (audioObjectRef.current) {
+                        audioObjectRef.current.audio.pause();
+                        audioObjectRef.current.gain.gain.setValueAtTime(originalVolume, now);
+                    }
+                    setTrack(old => {
+                        if (old == undefined) return old;
+                        return {
+                            ...old,
+                            playing: false,
+                            position: audioObjectRef.current?.audio?.currentTime ?? old.position,
+                        }
+                    });
+                    setFading(false);
+                }, duration);
+            }
+
+            return queue;
+        });
+    }, [fadeInQueue, loading, playTrack, track, fading])
+
+    useEffect(() => {
         if (track == undefined || prevTrackIdRef.current == track.id) return;
         prevTrackIdRef.current = track.id;
 
@@ -79,7 +159,7 @@ function PlayerAudioIndicator({
     }, [loadTrack, track, playTrack]);
 
     useEffect(() => {
-        if (track == undefined || audioObjectRef.current == null) return;
+        if (track == undefined || audioObjectRef.current == null || fading) return;
 
         // Verify if there is a significant discrepancy in the track position:
         if (Math.abs(track.position - audioObjectRef.current.audio.currentTime) > 1) {
@@ -96,7 +176,7 @@ function PlayerAudioIndicator({
         }
 
         audioObjectRef.current.gain.gain.setValueAtTime(track.volume, audioObjectRef.current.audio.currentTime);
-    }, [track, playTrack, triggerPlayback]);
+    }, [track, playTrack, triggerPlayback, fading]);
 
     useEffect(() => {
         if (loading) return;
@@ -204,6 +284,9 @@ export function PlayerView() {
                     )
                 );
             }
+            else if (message.type === "fade") {
+                // Handled by children
+            }
             else {
                 logging.error(`Received invalid message of type '${message.type}':`, message);
             }
@@ -233,7 +316,7 @@ export function PlayerView() {
                     <PlayerSettingsProvider key={playlist} playlist={playlist}>
                         <PlayerAudioIndicator
                             playlist={playlist}
-                            track={tracks[playlist]}
+                            referenceTrack={tracks[playlist]}
                             globalVolume={volume}
                             triggerPlayback={triggerPlayback}
                             autoplayError={autoplayError} 

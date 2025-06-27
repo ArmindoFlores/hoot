@@ -8,9 +8,12 @@ import { DragIndicator } from "@mui/icons-material";
 import FadeIn from "../assets/fadein.svg";
 import FadeOut from "../assets/fadeout.svg";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { INTERNAL_BROADCAST_CHANNEL } from "../config";
+import { MessageContent } from "../types/messages";
 import OBR from "@owlbear-rodeo/sdk";
 import { RepeatMode } from "../types/tracks";
 import RepeatSelf from "../assets/repeat-self.svg";
+import { useOBRBroadcast } from "../hooks/obr";
 import { useSettings } from "../providers/SettingsProvider";
 import { useSortable } from "@dnd-kit/sortable";
 
@@ -68,6 +71,7 @@ export function AudioControls(props: AudioControlsProps) {
     } = useAudioControls(props.playlist);
     const { unloadTrack } = useAudio();
     const { fadeTime } = useSettings();
+    const { sendMessage } = useOBRBroadcast<MessageContent>();
     const {
         attributes,
         listeners,
@@ -98,15 +102,41 @@ export function AudioControls(props: AudioControlsProps) {
 
     const handleFadeIn = useCallback(async () => {
         setFading(true);
+        sendMessage(
+            INTERNAL_BROADCAST_CHANNEL,
+            {
+                type: "fade",
+                payload: {
+                    playlist: props.playlist,
+                    fade: "in",
+                    duration: fadeTime,
+                }
+            },
+            undefined,
+            "REMOTE"
+        );
         await runAndShowError(() => fadeIn(fadeTime), "Error fading in track: ");
         setFading(false);
-    }, [fadeTime, fadeIn]);
+    }, [fadeTime, fadeIn, props.playlist, sendMessage]);
 
     const handleFadeOut = useCallback(async () => {
         setFading(true);
+        sendMessage(
+            INTERNAL_BROADCAST_CHANNEL,
+            {
+                type: "fade",
+                payload: {
+                    playlist: props.playlist,
+                    fade: "out",
+                    duration: fadeTime,
+                }
+            },
+            undefined,
+            "REMOTE"
+        );
         await runAndShowError(() => fadeOut(fadeTime), "Error fading out track: ");
         setFading(false);
-    }, [fadeTime, fadeOut]);
+    }, [fadeTime, fadeOut, props.playlist, sendMessage]);
 
     return <Box ref={setNodeRef} {...attributes} style={style}>
         <Card sx={{ p: 1, pt: 2, mb: 1, position: "relative" }}>
