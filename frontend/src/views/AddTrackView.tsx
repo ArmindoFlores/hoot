@@ -1,7 +1,7 @@
+import { APP_KEY, INTERNAL_BROADCAST_CHANNEL } from "../config";
 import { Box, Button, Input, Typography } from "@mui/material";
 import { useCallback, useRef, useState } from "react";
 
-import { APP_KEY } from "../config";
 import { Modal } from "@owlbear-rodeo/sdk/lib/types/Modal";
 import OBR from "@owlbear-rodeo/sdk";
 import { useAuth } from "../providers/AuthProvider";

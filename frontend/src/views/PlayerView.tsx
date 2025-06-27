@@ -49,7 +49,7 @@ function PlayerAudioIndicator({
                     "Autoplay is disabled. Please press the 'Reset Playback' button in the Hoot page.", 
                     "WARNING"
                 );
-                // autoplayError();
+                autoplayError();
             }
             else if (reason.name === "AbortError") {
                 // This is not really an error for us
@@ -59,13 +59,14 @@ function PlayerAudioIndicator({
                 OBR.notification.show(`Error starting track '${name}': ${reason.message}`, "ERROR");
             }
         }
-    }, []);
+    }, [autoplayError]);
 
     useEffect(() => {
         if (track == undefined || prevTrackIdRef.current == track.id) return;
         prevTrackIdRef.current = track.id;
 
         setLoading(true);
+        logging.info(`Loading playlist ${track.playlist}`);
         loadTrack(track.playlist, track.source, track.name, track.id).then(audioObject => {
             audioObjectRef.current = audioObject;
             audioObject.audio.currentTime = track.position;
@@ -95,12 +96,11 @@ function PlayerAudioIndicator({
         }
 
         audioObjectRef.current.gain.gain.setValueAtTime(track.volume, audioObjectRef.current.audio.currentTime);
-    }, [track, playTrack]);
+    }, [track, playTrack, triggerPlayback]);
 
     useEffect(() => {
         if (loading) return;
 
-        console.log("Registering event listener");
         const audioElement = audioObjectRef.current?.audio;
         if (audioElement) {
             const handleTimeUpdate = () => {
@@ -117,6 +117,16 @@ function PlayerAudioIndicator({
         if (trackId == null || audioObjectRef.current == null) return;
         audioObjectRef.current.playerGain.gain.setValueAtTime(playlistVolume, audioObjectRef.current.audio.currentTime);
     }, [playlistVolume, trackId]);
+
+    useEffect(() => {
+        if (track?.playlist == undefined) return;
+        return () => {
+            if (audioObjectRef.current != null) {
+                logging.info(`Unloaded playlist ${track?.playlist}`);
+                unloadTrack(track?.playlist);
+            }
+        }
+    }, [unloadTrack, track?.playlist]);
 
     return <Card key={playlist} sx={{ p: 2, mb: 1 }}>
         <Box sx={{ display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
@@ -159,6 +169,10 @@ export function PlayerView() {
 
     const playlists = useMemo(() => Object.keys(tracks), [tracks]);
 
+    const autoplayError = useCallback(() => {
+        setAutoplayErrorOccurred(true);
+    }, []);
+
     const toggleMute = useCallback(() => {
         if (volume === 0) {
             setVolume(previousVolume);
@@ -182,9 +196,7 @@ export function PlayerView() {
     }, [volume]);
 
     useEffect(() => {
-        logging.info("Registered message handler.");
         return registerMessageHandler(INTERNAL_BROADCAST_CHANNEL, message => {
-            logging.info("Received message:", message);
             if (message.type === "playing") {
                 setTracks(
                     Object.fromEntries(
@@ -224,7 +236,7 @@ export function PlayerView() {
                             track={tracks[playlist]}
                             globalVolume={volume}
                             triggerPlayback={triggerPlayback}
-                            autoplayError={() => setAutoplayErrorOccurred(true)} 
+                            autoplayError={autoplayError} 
                         />
                     </PlayerSettingsProvider>
                 ))

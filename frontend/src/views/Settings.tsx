@@ -170,8 +170,7 @@ export function SettingsView() {
                                 <Typography fontWeight="bold">Subscription:</Typography>
                                 <Typography sx={{ml: 0.5}}>{ user.patreon_member ? "Patreon Member" : "Free" }</Typography>
                                 <Typography
-                                    sx={{ml: 0.5}}
-                                    className="clickable"
+                                    sx={{ml: 0.5, cursor: "pointer"}}
                                     title="Become a Patreon member to have access to 10GB of storage!"
                                     onClick={() => setModalOpened("PATREON")}
                                 >

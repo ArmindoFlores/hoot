@@ -182,8 +182,6 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     const [playing, setPlaying] = useState<Record<string, AudioObject|null>>({});
     const [volume, setVolume] = useState(1);
     const [triggeredEventCount, setTriggeredEventCount] = useState(0);
-    
-    logging.info("Successfully created an Audio Context");
 
     useEffect(() => {
         const context = audioContextRef.current;
@@ -199,7 +197,9 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
 
     useEffect(() => {
         if (globalGainRef.current == undefined) return;
-        globalGainRef.current.gain.value = volume;
+        const now = audioContextRef.current.currentTime;
+        globalGainRef.current.gain.cancelScheduledValues(now);
+        globalGainRef.current.gain.setValueAtTime(volume, now);
     }, [volume]);
 
     useEffect(() => {

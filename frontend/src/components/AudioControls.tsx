@@ -8,14 +8,11 @@ import { DragIndicator } from "@mui/icons-material";
 import FadeIn from "../assets/fadein.svg";
 import FadeOut from "../assets/fadeout.svg";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { MessageContent } from "../types/messages";
 import OBR from "@owlbear-rodeo/sdk";
 import { RepeatMode } from "../types/tracks";
 import RepeatSelf from "../assets/repeat-self.svg";
-import { useOBRBroadcast } from "../hooks/obr";
 import { useSettings } from "../providers/SettingsProvider";
 import { useSortable } from "@dnd-kit/sortable";
-import { useThrottled } from "../hooks";
 
 export interface AudioControlsProps {
     playlist: string;
@@ -35,36 +32,6 @@ function formatTime(seconds: number): string {
     } else {
         return `${formattedMinutes}:${formattedSeconds}`;
     }
-}
-
-function shuffleArray<T>(array: T[]): T[] {
-    for (let i = array.length - 1; i > 0; i--) { 
-        const j = Math.floor(Math.random() * (i + 1)); 
-        [array[i], array[j]] = [array[j], array[i]]; 
-    } 
-    return array; 
-}
-
-async function tryPlay(audio: HTMLAudioElement, trackName: string) {
-    try {
-        await audio.play();
-        return true;
-    }
-    catch (error) {
-        const domError = error as DOMException;
-        if (domError.name === "NotAllowedError") {
-            // Autoplay issue
-            OBR.notification.show(`Could not start the track '${trackName}' because autoplay is disabled`, "WARNING");
-        }
-        else if (domError.name === "AbortError") {
-            // This is not really an error for us
-        }
-        else {
-            // Some other issue
-            OBR.notification.show(`Error starting track '${trackName}': ${domError.message}`, "ERROR");
-        }
-    }
-    return false;
 }
 
 async function runAndShowError<R>(func: () => Promise<R>, errorPrefix: string = "") {
@@ -101,7 +68,6 @@ export function AudioControls(props: AudioControlsProps) {
     } = useAudioControls(props.playlist);
     const { unloadTrack } = useAudio();
     const { fadeTime } = useSettings();
-    const { sendMessage, registerMessageHandler } = useOBRBroadcast<MessageContent>();
     const {
         attributes,
         listeners,
@@ -114,11 +80,9 @@ export function AudioControls(props: AudioControlsProps) {
         transform: CSS.Transform.toString(transform),
         transition,
     };
-    const [ scheduledUpdate, setScheduledUpdate ] = useState(false);
     const [ fading, setFading ] = useState(false);
 
     const sliderValue = (position != undefined && duration != undefined && duration != 0) ? position / duration * 100 : 0;
-    const throttledSend = useThrottled(sendMessage, 250, "trailing");
 
     const nextRepeatMode = useCallback((prev: RepeatMode) => {
         if (prev === "no-repeat") {
@@ -130,7 +94,7 @@ export function AudioControls(props: AudioControlsProps) {
         else {
             setRepeatMode("no-repeat");
         }
-    }, []);
+    }, [setRepeatMode]);
 
     const handleFadeIn = useCallback(async () => {
         setFading(true);

@@ -1,14 +1,15 @@
 import { Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Typography } from "@mui/material";
-import { Track, useTracks } from "../providers/TrackProvider";
 import { faAdd, faFileExport, faFileImport, faTrash } from "@fortawesome/free-solid-svg-icons";
 import { useCallback, useRef, useState } from "react";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import OBR from "@owlbear-rodeo/sdk";
+import { Track } from "../types/tracks";
 import { addTrackModal } from "./AddTrackView";
 import { importLocalTracksModal } from "./ImportLocalTracksView";
 import { logging } from "../logging";
 import { useAuth } from "../providers/AuthProvider";
+import { useTracks } from "../providers/TrackProvider";
 
 type ModalType = "DELETE_TRACKS";
 

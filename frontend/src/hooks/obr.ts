@@ -98,18 +98,14 @@ export function useOBRBroadcast<MessageDataType>() {
     }, []);
 
     const registerMessageHandler = useCallback((channel: string, callback: (message: MessageDataType, sender: string) => void) => {
-        logging.info(`Registering handle on channel ${channel}`);
         if (!messageHandlers.current.has(channel)) {
-            logging.info("Channel currently has no listeners, adding one");
             messageHandlers.current.set(channel, []);
             setChannels(old => [...old, channel]);
         }
         messageHandlers.current.get(channel)?.push?.(callback);
         return () => {
-            logging.info(`Unmounting handler from channel ${channel}`);
             const handlers = messageHandlers.current.get(channel);
             if (handlers == undefined) {
-                logging.warn("No handlers to remove");
                 return;
             }
             const newHandlers = handlers.filter(handler => handler != callback);
@@ -117,7 +113,6 @@ export function useOBRBroadcast<MessageDataType>() {
                 messageHandlers.current.set(channel, newHandlers);
             }
             else {
-                logging.info("No more handlers, removing from set");
                 messageHandlers.current.delete(channel);
                 setChannels(old => old.filter(oldChannel => channel != oldChannel));
             }
@@ -125,14 +120,11 @@ export function useOBRBroadcast<MessageDataType>() {
     }, []);
 
     useEffect(() => {
-        logging.info("Updating message handlers", channels);
         const unsubscriptionArray = channels.map(channel => OBR.broadcast.onMessage(channel, event => {
-            logging.info(`Received message on channel ${channel} with ${(messageHandlers.current.get(channel) ?? []).length} handler(s)`);
             for (const handler of messageHandlers.current.get(channel) ?? []) {
                 try {
                     const data = event.data as { data: MessageDataType, recipients: string[] };
                     if (data.recipients == undefined || data.recipients.includes(player?.connectionId ?? "")) {
-                        logging.info("-> Forwarding message to handler");
                         handler(data.data, event.connectionId);
                     }
                 }

@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { Line } from "rc-progress";
 import { Modal } from "@owlbear-rodeo/sdk/lib/types/Modal";
 import OBR from "@owlbear-rodeo/sdk";
-import { Track } from "../providers/TrackProvider";
+import { Track } from "../types/tracks";
 import localforage from "localforage";
 import { useOBRTheme } from "../hooks";
 
@@ -52,8 +52,8 @@ export function ImportLocalTracksModal() {
         }
         apiService.addTrackFromURL(
             currentTrack.name,
-            currentTrack.playlists,
-            currentTrack.source
+            currentTrack.playlists ?? [],
+            currentTrack.source!
         ).then(result => {
             if (isError(result)) {
                 throw new Error(result.error);

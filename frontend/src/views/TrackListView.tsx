@@ -50,7 +50,7 @@ function PlaylistItem({ playlist, playingPlaylists, playing, tracks, playTrack, 
         if (!playingPlaylists.includes(playlist)) {
             return false;
         }
-        if (playing[playlist]?.sourceURL !== track.source) {
+        if (playing[playlist]?.track?.source !== track.source) {
             return false;
         }
         return true;
