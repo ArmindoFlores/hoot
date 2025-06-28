@@ -12,6 +12,7 @@ import { useTracks } from "./TrackProvider";
 
 export interface AudioElements {
     nextTrack?: Track;
+    context: AudioContext;
     gain: GainNode;
     audio: HTMLAudioElement;
     source: MediaElementAudioSourceNode;
@@ -40,6 +41,8 @@ interface GlobalAudioContextType {
     getNextTrack: (id: string) => Track|null;
     getPreviousTrack: (id: string) => Track|null;
     setVolume: (volume: number) => void;
+    fadeInTrack: (channel: string, duration: number) => Promise<void>;
+    fadeOutTrack: (channel: string, duration: number) => Promise<void>;
     triggerEvent: () => void;
 }
 
@@ -134,6 +137,7 @@ function setupAudioNodes(
             updateCount: 0,
         },
         audioElements: {
+            context,
             gain: gainNode,
             audio,
             source,
@@ -163,6 +167,7 @@ function setupAudioNodes(
             updateCount: 0,
         },
         audioElements: {
+            context,
             gain: gainNode,
             audio,
             source,
@@ -190,8 +195,23 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         globalGainRef.current = gain;
         gain.connect(context.destination);
 
+        function handleStateChange() {
+            if (context.state == "suspended") {
+                logging.warn("Audio Context was suspended, resuming");
+                context.resume();
+            }
+            else if (context.state == "closed") {
+                logging.error("Audio Context has closed unexpectedly");
+            }
+        }
+        if (context.state == "suspended") {
+            context.resume();
+        }
+        context.addEventListener("statechange", handleStateChange);
+
         return () => {
             gain.disconnect();
+            context.removeEventListener("statechange", handleStateChange);
         }
     }, []);
 
@@ -325,7 +345,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
                     loadedTrack => {
                         if (previousAudioElements?.audio != undefined) {
                             loadedTrack.audioElements.gain.gain.setValueAtTime(previousAudioElements.gain.gain.value, 0);
-                            loadedTrack.audioElements.audio.play();
+                            audioContextRef.current.resume().then(() => loadedTrack.audioElements.audio.play());
                         }
                         resolve(loadedTrack);
                         triggerEvent();
@@ -389,6 +409,83 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         return audioElementsRef.current[id];
     }, []);
 
+    const fadeInTrack = useCallback((channel: string, duration: number): Promise<void> => {
+        sendMessage(
+            INTERNAL_BROADCAST_CHANNEL,
+            {
+                type: "fade",
+                payload: {
+                    playlist: channel,
+                    fade: "in",
+                    duration: duration,
+                }
+            },
+            undefined,
+            "REMOTE"
+        );
+        return new Promise((resolve, reject) => {
+            const trackElements = audioElementsRef.current[channel];
+            if (!trackElements) {
+                const error = new Error("Fade-in failed: no audio track to fade");
+                reject(error);
+                return;
+            }
+
+            const context = trackElements.gain.context;
+            const now = context.currentTime;
+
+            const originalVolume = trackElements.gain.gain.value;
+            trackElements.gain.gain.cancelScheduledValues(now);
+            trackElements.gain.gain.setValueAtTime(0, now);
+            trackElements.audio.play().then(() => {
+                trackElements.gain.gain.linearRampToValueAtTime(originalVolume, now + duration / 1000);
+                setTimeout(() => {
+                    resolve();
+                }, duration);
+            }).catch(error => {
+                reject(error);
+            }).finally(triggerEvent);
+        });
+    }, [triggerEvent, sendMessage]);
+
+    const fadeOutTrack = useCallback((channel: string, duration: number): Promise<void> => {
+        sendMessage(
+            INTERNAL_BROADCAST_CHANNEL,
+            {
+                type: "fade",
+                payload: {
+                    playlist: channel,
+                    fade: "out",
+                    duration: duration,
+                }
+            },
+            undefined,
+            "REMOTE"
+        );
+        return new Promise((resolve, reject) => {
+            const trackElements = audioElementsRef.current[channel];
+            if (!trackElements) {
+                const error = new Error("Fade-out failed: no audio track to fade");
+                reject(error);
+                return;
+            }
+
+            const context = trackElements.gain.context;
+            const now = context.currentTime;
+
+            const originalVolume = trackElements.gain.gain.value;
+            trackElements.gain.gain.cancelScheduledValues(now);
+            trackElements.gain.gain.linearRampToValueAtTime(0, now + duration / 1000);
+        
+            setTimeout(() => {
+                resolve();
+                trackElements.audio.pause();
+                trackElements.gain.gain.setValueAtTime(originalVolume, now);
+                triggerEvent();
+            }, duration);
+        });
+    }, [triggerEvent, sendMessage]);
+
     return <AudioPlayerContext.Provider
         value={{
             playing,
@@ -401,6 +498,8 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
             getNextTrack,
             getPreviousTrack,
             volume,
+            fadeInTrack,
+            fadeOutTrack,
             triggerEvent,
         }}
     >
@@ -423,6 +522,8 @@ export function useAudioControls(channel: string): AudioPlayerControls {
         getNextTrack,
         getPreviousTrack,
         triggerEvent,
+        fadeInTrack,
+        fadeOutTrack,
     } = useAudio();
     const throttledTriggerEvent = useThrottled(triggerEvent, 100, "trailing");
     const { loadOnlineTrack } = useTracks();
@@ -549,61 +650,25 @@ export function useAudioControls(channel: string): AudioPlayerControls {
         triggerEvent();
     }, [channel, getTrackElements, triggerEvent]);
 
-    const fadeIn = useCallback((duration: number): Promise<void> => {
-        return new Promise((resolve, reject) => {
-            const trackElements = getTrackElements(channel);
-            if (!trackElements) {
-                const error = new Error("Fade-in failed: no audio track to fade");
-                setError(error);
-                reject(error);
-                return;
-            }
+    const fadeIn = useCallback(async (duration: number): Promise<void> => {
+        try {
+            await fadeInTrack(channel, duration);
+            setPlaying(true);
+        }
+        catch (error) {
+            setError(error as Error);
+        }
+    }, [channel, fadeInTrack]);
 
-            const context = trackElements.gain.context;
-            const now = context.currentTime;
-
-            const originalVolume = trackElements.gain.gain.value;
-            trackElements.gain.gain.cancelScheduledValues(now);
-            trackElements.gain.gain.setValueAtTime(0, now);
-            trackElements.audio.play().then(() => {
-                setPlaying(true);
-                trackElements.gain.gain.linearRampToValueAtTime(originalVolume, now + duration / 1000);
-                setTimeout(() => {
-                    resolve();
-                }, duration);
-            }).catch(error => {
-                setError(error);
-                reject(error);
-            }).finally(triggerEvent);
-        });
-    }, [channel, getTrackElements, triggerEvent]);
-
-    const fadeOut = useCallback((duration: number): Promise<void> => {
-        return new Promise((resolve, reject) => {
-            const trackElements = getTrackElements(channel);
-            if (!trackElements) {
-                const error = new Error("Fade-out failed: no audio track to fade");
-                setError(error);
-                reject(error);
-                return;
-            }
-
-            const context = trackElements.gain.context;
-            const now = context.currentTime;
-
-            const originalVolume = trackElements.gain.gain.value;
-            trackElements.gain.gain.cancelScheduledValues(now);
-            trackElements.gain.gain.linearRampToValueAtTime(0, now + duration / 1000);
-        
-            setTimeout(() => {
-                resolve();
-                setPlaying(false);
-                trackElements.audio.pause();
-                trackElements.gain.gain.setValueAtTime(originalVolume, now);
-                triggerEvent();
-            }, duration);
-        });
-    }, [channel, getTrackElements, triggerEvent]);
+    const fadeOut = useCallback(async (duration: number): Promise<void> => {
+        try {
+            await fadeOutTrack(channel, duration);
+            setPlaying(false);
+        }
+        catch (error) {
+            setError(error as Error);
+        }
+    }, [channel, fadeOutTrack]);
 
     const setVolume = useCallback((volume: number) => {
         const trackElements = getTrackElements(channel);
@@ -636,6 +701,7 @@ export function useAudioControls(channel: string): AudioPlayerControls {
         const trackElements = getTrackElements(channel);
         if (trackElements == undefined) return;
 
+        setPosition(time);
         trackElements.audio.currentTime = time;
         triggerEvent();
     }, [channel, getTrackElements, triggerEvent]);

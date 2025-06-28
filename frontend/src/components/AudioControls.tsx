@@ -1,19 +1,16 @@
 import { Box, Card, CircularProgress, IconButton, Slider, Typography } from "@mui/material";
 import { faBackward, faCircleExclamation, faClose, faForward, faPause, faPlay, faRepeat, faShuffle, faVolumeHigh, faVolumeLow, faVolumeOff } from "@fortawesome/free-solid-svg-icons";
 import { useAudio, useAudioControls } from "../providers/AudioPlayerProvider";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { CSS } from "@dnd-kit/utilities";
 import { DragIndicator } from "@mui/icons-material";
 import FadeIn from "../assets/fadein.svg";
 import FadeOut from "../assets/fadeout.svg";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { INTERNAL_BROADCAST_CHANNEL } from "../config";
-import { MessageContent } from "../types/messages";
 import OBR from "@owlbear-rodeo/sdk";
 import { RepeatMode } from "../types/tracks";
 import RepeatSelf from "../assets/repeat-self.svg";
-import { useOBRBroadcast } from "../hooks/obr";
 import { useSettings } from "../providers/SettingsProvider";
 import { useSortable } from "@dnd-kit/sortable";
 
@@ -71,7 +68,6 @@ export function AudioControls(props: AudioControlsProps) {
     } = useAudioControls(props.playlist);
     const { unloadTrack } = useAudio();
     const { fadeTime } = useSettings();
-    const { sendMessage } = useOBRBroadcast<MessageContent>();
     const {
         attributes,
         listeners,
@@ -85,8 +81,21 @@ export function AudioControls(props: AudioControlsProps) {
         transition,
     };
     const [ fading, setFading ] = useState(false);
+    const [ isSeeking, setIsSeeking ] = useState(false);
+    const [ sliderValue, setSliderValue ] = useState(0);
+    const lastKnownSliderValue = useRef(0);
 
-    const sliderValue = (position != undefined && duration != undefined && duration != 0) ? position / duration * 100 : 0;
+    useEffect(() => {
+        if (isSeeking) return;
+        if (position == undefined || duration == undefined || isNaN(duration) || duration == 0) {
+            setSliderValue(0);
+            lastKnownSliderValue.current = 0;
+        }
+        else {
+            setSliderValue(position / duration * 100);
+            lastKnownSliderValue.current = position / duration * 100;
+        }
+    }, [position, duration, isSeeking]);
 
     const nextRepeatMode = useCallback((prev: RepeatMode) => {
         if (prev === "no-repeat") {
@@ -102,41 +111,15 @@ export function AudioControls(props: AudioControlsProps) {
 
     const handleFadeIn = useCallback(async () => {
         setFading(true);
-        sendMessage(
-            INTERNAL_BROADCAST_CHANNEL,
-            {
-                type: "fade",
-                payload: {
-                    playlist: props.playlist,
-                    fade: "in",
-                    duration: fadeTime,
-                }
-            },
-            undefined,
-            "REMOTE"
-        );
         await runAndShowError(() => fadeIn(fadeTime), "Error fading in track: ");
         setFading(false);
-    }, [fadeTime, fadeIn, props.playlist, sendMessage]);
+    }, [fadeTime, fadeIn]);
 
     const handleFadeOut = useCallback(async () => {
         setFading(true);
-        sendMessage(
-            INTERNAL_BROADCAST_CHANNEL,
-            {
-                type: "fade",
-                payload: {
-                    playlist: props.playlist,
-                    fade: "out",
-                    duration: fadeTime,
-                }
-            },
-            undefined,
-            "REMOTE"
-        );
         await runAndShowError(() => fadeOut(fadeTime), "Error fading out track: ");
         setFading(false);
-    }, [fadeTime, fadeOut, props.playlist, sendMessage]);
+    }, [fadeTime, fadeOut]);
 
     return <Box ref={setNodeRef} {...attributes} style={style}>
         <Card sx={{ p: 1, pt: 2, mb: 1, position: "relative" }}>
@@ -183,11 +166,19 @@ export function AudioControls(props: AudioControlsProps) {
                     <Box sx={{ display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 2}}>
                         <Typography sx={{ userSelect: "none" }}>{formatTime(position ?? 0)}</Typography>
                             <Slider
-                                key={`slider-${sliderValue.toFixed(2)}`}
+                                key={`volume-slider-${isSeeking ? lastKnownSliderValue.current : sliderValue}`}
                                 orientation="horizontal"
                                 size="small"
                                 value={sliderValue}
-                                onChange={(_, value) => duration != null ? seek(value as number / 100 * duration) : undefined}
+                                onChange={(_, value) => {
+                                    setIsSeeking(true);
+                                    setSliderValue(value as number);
+                                }}
+                                onChangeCommitted={(_, value) => {
+                                    if (duration == null) return;
+                                    setIsSeeking(false);
+                                    seek(value as number / 100 * duration);
+                                }}
                                 disabled={!loaded}
                             />
                         <Typography sx={{ userSelect: "none" }}>{formatTime(duration ?? 0)}</Typography>

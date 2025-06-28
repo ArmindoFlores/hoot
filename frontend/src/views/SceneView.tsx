@@ -1,25 +1,13 @@
+import { AUTOPLAY_METADATA_KEY, AutoplayList } from "../components/Autoplay";
 import { Box, Button, Card, IconButton, Input, Slider, Switch, Typography } from "@mui/material";
 import { faAdd, faClose, faRepeat, faSave } from "@fortawesome/free-solid-svg-icons";
 import { useEffect, useState } from "react";
-import { useOBRBase, useOBRBroadcast } from "../hooks/obr";
 
-import { APP_KEY } from "../config";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import OBR from "@owlbear-rodeo/sdk";
-import { RepeatMode } from "../types/tracks";
 import RepeatSelf from "../assets/repeat-self.svg";
-import { useAudio } from "../providers/AudioPlayerProvider";
-import { useSettings } from "../providers/SettingsProvider";
+import { useOBRBase } from "../hooks/obr";
 import { useTracks } from "../providers/TrackProvider";
-
-type AutoplayList = {
-    playlist: string;
-    track: string;
-    volume: number;
-    shuffle: boolean;
-    fadeIn: boolean;
-    repeatMode: RepeatMode;
-}[];
 
 interface AutoplayPlaylistItemProps {
     autoplayEntry: AutoplayList[number];
@@ -53,7 +41,7 @@ function AutoplayPlaylistItem({ autoplayEntry, setAutoplayEntry, setAutoplay }: 
         setAutoplay(old => {
             const arr = old.filter(item => item != autoplayEntry)
             OBR.scene.setMetadata({
-                [`${APP_KEY}/autoplay`]: arr.length > 0 ? arr : undefined
+                [AUTOPLAY_METADATA_KEY]: arr.length > 0 ? arr : undefined
             });
             return arr;
         });
@@ -112,7 +100,7 @@ function AutoplayPlaylistItem({ autoplayEntry, setAutoplayEntry, setAutoplay }: 
             </Box>
             <Box sx={{ display: "flex", flex: 1, gap: 2, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                 <label style={{paddingRight: "0.5rem"}}>Volume</label>
-                <Slider value={volume} onChange={(_, value) => setVolume(value as number)}/>
+                <Slider value={volume * 100} onChange={(_, value) => setVolume(value as number / 100)}/>
             </Box>
         </Box>
         <IconButton 
@@ -133,21 +121,8 @@ function AutoplayPlaylistItem({ autoplayEntry, setAutoplayEntry, setAutoplay }: 
 }
 
 export function SceneView() {
-    const { tracks, playlists } = useTracks();
-    const { playing } = useAudio();
-    const { stopOtherTracks, enableAutoplay } = useSettings();
     const { sceneReady } = useOBRBase();
-    const { sendMessage } = useOBRBroadcast();
-
     const [ autoplay, setAutoplay ] = useState<AutoplayList>([]);
-    const [ playlistsToFadeIn, setPlaylistsToFadeIn ] = useState<{ playlist: string, track: string }[]>([]);
-    const [ triggerAutoplay, setTriggerAutoplay ] = useState(false);
-    const [ hasAutoplayed, setHasAutoplayed ] = useState(false);
-
-    const disableAutoplay = () => {
-        setTriggerAutoplay(false);
-        setHasAutoplayed(true);
-    }
 
     const addNewPlaylist = () => {
         setAutoplay([
@@ -167,137 +142,18 @@ export function SceneView() {
         setAutoplay(old => {
             old.splice(index, 1, entry);
             OBR.scene.setMetadata({
-                [`${APP_KEY}/autoplay`]: old
+                [AUTOPLAY_METADATA_KEY]: old
             });
             return old;
         });
     }
 
-    // useEffect(() => {
-    //     const autoplay = sceneMetadata[`${APP_KEY}/autoplay`] as (AutoplayList|undefined);
-    //     setAutoplay(autoplay ?? []);
-    //     setPlaylistsToFadeIn([]);
-    //     if (enableAutoplay && autoplay && autoplay.length) {
-    //         setTriggerAutoplay(true);
-    //     }
-    // }, [enableAutoplay]);
-
     useEffect(() => {
-        if (!sceneReady) {
-            disableAutoplay();
-        }
-        else {
-            setHasAutoplayed(false);
-        }
-    }, [sceneReady]);
-
-    useEffect(() => {
-        // Start autoplay if it is setup
-        if (sceneReady && autoplay != undefined && triggerAutoplay && !hasAutoplayed) {
-            const playlistsToFadeIn: { playlist: string, track: string }[] = [];
-            disableAutoplay();
-
-            for (const autoplayPlaylist of autoplay) {
-                const trackList = tracks.get(autoplayPlaylist.playlist);
-                if (trackList === undefined) {
-                    OBR.notification.show(`Could not find playlist "${autoplayPlaylist.playlist}" to autoplay`, "ERROR");
-                    continue;
-                }
-                // If a track was chosen, play that track. Else, if shuffling, play a random track.
-                // Otherwise, play the first track of the track list.
-                const index = autoplayPlaylist.shuffle ? Math.floor(Math.random() * trackList.length) : 0;
-                const currentlyPlaying = playing[autoplayPlaylist.playlist];
-                const track = autoplayPlaylist.track !== "" ? trackList.find(option => option.name === autoplayPlaylist.track) : (currentlyPlaying ? currentlyPlaying.track : trackList[index]);
-                if (track === undefined) {
-                    OBR.notification.show(`Could not find track "${autoplayPlaylist.track}" to autoplay`, "ERROR");
-                    continue;
-                }
-                const isSameTrack = currentlyPlaying && (currentlyPlaying.track.name === autoplayPlaylist.track || autoplayPlaylist.track === "");
-                const canFadeIn = (!isSameTrack || currentlyPlaying.playing === false) && autoplayPlaylist.fadeIn;
-                setPlaylist(
-                    autoplayPlaylist.playlist,
-                    {
-                        track,
-                        playing: !canFadeIn,  // For fade-in, we send a message later
-                        time: (isSameTrack ? currentlyPlaying?.time : 0) ?? 0,
-                        shuffle: autoplayPlaylist.shuffle,
-                        loaded: (isSameTrack ? currentlyPlaying?.loaded : false) ?? false,
-                        repeatMode: autoplayPlaylist.repeatMode,
-                        volume: autoplayPlaylist.volume,
-                        duration: isSameTrack ? currentlyPlaying?.duration : undefined
-                    }
-                );
-                if (canFadeIn) {
-                    playlistsToFadeIn.push({
-                        track: autoplayPlaylist.track,
-                        playlist: autoplayPlaylist.playlist
-                    });
-                }
-            }
-
-            //  After this render, fade in the missing playlists 
-            setPlaylistsToFadeIn(playlistsToFadeIn);
-
-            if (stopOtherTracks) {
-                for (const playlist of playlists) {
-                    // If it this playlist will be set by us, do nothing here
-                    if (autoplay.map(ap => ap.playlist).includes(playlist)) continue;
-
-                    // Else, fade it out
-                    const currentlyPlaying = playing[playlist];
-                    if (currentlyPlaying == undefined) continue;
-                    sendMessage(
-                        INTERNAL_BROADCAST_CHANNEL,
-                        { 
-                            type: "fade",
-                            payload: {
-                                fade: "out",
-                                playlist
-                            }
-                        }, 
-                        undefined,
-                        "LOCAL"
-                    );
-                }
-            }
-        }
-    }, [sceneReady, playing, playlists, sendMessage, setPlaylist, stopOtherTracks, tracks, triggerAutoplay, autoplay, hasAutoplayed]);
-
-    useEffect(() => {
-        // This will run after entering a new scene, and after the initial track
-        // setup is performed, so that all playlists are ready to fade in.
-        if (playlistsToFadeIn.length) {
-            const startedPlaylists: string[] = [];
-            for (const { playlist, track } of playlistsToFadeIn) {
-                const playingPlaylist = playing[playlist];
-                if (
-                    playingPlaylist?.playing === undefined ||
-                    playingPlaylist.playing ||
-                    (track != "" && playingPlaylist.track.name !== track) ||
-                    !playingPlaylist.loaded
-                ) {
-                    continue;
-                }
-                sendMessage(
-                    INTERNAL_BROADCAST_CHANNEL,
-                    {
-                        type: "fade",
-                        payload: {
-                            fade: "in",
-                            playlist
-                        }
-                    }, 
-                    undefined,
-                    "LOCAL"
-                );
-                startedPlaylists.push(playlist);
-            }
-            const newPlaylists = playlistsToFadeIn.filter(({ playlist }) => !startedPlaylists.includes(playlist))
-            if (newPlaylists.length < playlistsToFadeIn.length) {
-                setPlaylistsToFadeIn(newPlaylists);
-            }
-        }
-    }, [playlistsToFadeIn, playing, sendMessage]);
+        OBR.scene.getMetadata().then(sceneMetadata => {
+            const autoplay = sceneMetadata[AUTOPLAY_METADATA_KEY] as (AutoplayList|undefined);
+            setAutoplay(autoplay ?? []);
+        });
+    }, []);
 
     return <Box sx={{ p: 2, overflow: "auto", height: "calc(100vh - 50px)" }}>
         <Typography variant="h5">Autoplay</Typography>

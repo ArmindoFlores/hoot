@@ -1,4 +1,4 @@
-import { ArrowRight, Delete, DragIndicator, VolumeUp } from "@mui/icons-material";
+import { ArrowRight, DragIndicator, VolumeUp } from "@mui/icons-material";
 import { AudioObject, useAudio } from "../providers/AudioPlayerProvider";
 import { Box, Card, Collapse, IconButton, Input, Typography } from "@mui/material";
 import { DndContext, DragEndEvent, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
@@ -26,10 +26,9 @@ interface PlaylistItemProps {
     tracks: Map<string, Track[]>;
     playTrack: (track: Track, playlist: string) => Promise<void>;
     trackFilter: (track: Track) => boolean;
-    removeTrack: (trackName: string, playlist: string) => void;
 }
 
-function PlaylistItem({ playlist, playingPlaylists, playing, tracks, playTrack, trackFilter, removeTrack }: PlaylistItemProps) {
+function PlaylistItem({ playlist, playingPlaylists, playing, tracks, playTrack, trackFilter }: PlaylistItemProps) {
     const {
         attributes,
         listeners,
@@ -79,7 +78,7 @@ function PlaylistItem({ playlist, playingPlaylists, playing, tracks, playTrack, 
                             onClick={() => playTrack(track, playlist)}
                             onMouseEnter={() => setHoveredTrack(track)}
                             onMouseLeave={() => setHoveredTrack(oldTrack => oldTrack === track ? undefined : oldTrack)}
-                            sx={{ display: "flex", flexDirection: "row", gap: 1, alignItems: "center" }}
+                            sx={{ pl: 1, pr: 1, display: "flex", flexDirection: "row", gap: 1, alignItems: "center", backgroundColor: hoveredTrack?.id == track.id ? "rgba(0, 0, 0, 0.2)" : undefined }}
                         >
                             <VolumeUp
                                 sx={{
@@ -87,11 +86,20 @@ function PlaylistItem({ playlist, playingPlaylists, playing, tracks, playTrack, 
                                     opacity: isPlayingTrack(track, playlist) ? 1 : 0
                                 }}
                             />
-                            <Box sx={{ display: "flex", flex: 1, flexDirection: "row", gap: 1, cursor: "pointer", alignItems: "center", justifyContent: "space-between" }}>
+                            <Box 
+                                sx={{
+                                    display: "flex",
+                                    flex: 1,
+                                    flexDirection: "row",
+                                    gap: 1,
+                                    cursor: "pointer",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    pb: 1,
+                                    pt: 1,
+                                }}
+                            >
                                 <Typography>{track.name}</Typography>
-                                <IconButton disabled={hoveredTrack !== track} onClick={() => removeTrack(track.name, playlist)} sx={{ opacity: hoveredTrack === track ? 1 : 0 }}>
-                                    <Delete />
-                                </IconButton>
                             </Box>
                         </Box>
                     )
@@ -108,7 +116,7 @@ function updateSortingOrder(sortingOrder: string[], existing: string[]) {
 }
 
 export function TrackListView() {
-    const { tracks, playlists, removeTrack, loadOnlineTrack } = useTracks();
+    const { tracks, playlists, loadOnlineTrack } = useTracks();
     const { playing, loadTrack } = useAudio();
     const playingPlaylists = useMemo(() => Object.keys(playing), [playing]);
     const sensors = useSensors(
@@ -210,7 +218,6 @@ export function TrackListView() {
                                 playingPlaylists={playingPlaylists}
                                 tracks={tracks}
                                 trackFilter={trackMatchesSearch}
-                                removeTrack={removeTrack}
                             />;
                         })
                     }

@@ -2,6 +2,7 @@ import { Box, Tab, Tabs } from "@mui/material";
 import { useEffect, useState } from "react";
 
 import { AudioPlayerView } from "./AudioPlayerView";
+import { Autoplay } from "../components/Autoplay";
 import { ExportView } from "./ExportView";
 import { INTERNAL_BROADCAST_CHANNEL } from "../config";
 import { MessageContent } from "../types/messages";
@@ -129,5 +130,6 @@ export function GMView() {
         <TabPanel value={selectedTab} index={4}>
             <SettingsView />
         </TabPanel>
+        <Autoplay />
     </Box>;
 }

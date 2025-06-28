@@ -6,6 +6,7 @@ import { logging } from "../logging";
 
 export interface AudioObject {
     id: string;
+    context: AudioContext;
     gain: GainNode;
     playerGain: GainNode;
     audio: HTMLAudioElement;
@@ -63,6 +64,7 @@ function setupAudioNodes(
     }
 
     const trueOnLoad = onLoad ? () => onLoad({
+        context,
         id,
         gain: gainNode,
         playerGain: playerGainNode,
@@ -84,6 +86,7 @@ function setupAudioNodes(
     source.connect(gainNode).connect(playerGainNode).connect(globalGain);
 
     return {
+        context,
         id,
         gain: gainNode,
         playerGain: playerGainNode,

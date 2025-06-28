@@ -18,6 +18,7 @@ interface TrackContextType {
     shuffledTracks: Map<string, Track[]>;
     playlists: string[];
     hasLocalTracks: boolean;
+    tracksLoaded: boolean;
     addTrack: (track: Track & { file?: File }) => void;
     removeTrack: (track: string, playlist: string) => void;
     importTracks: (tracks: Track[]) => void;
@@ -79,6 +80,7 @@ export function TrackProvider({ children, proxy }: { children: React.ReactNode, 
     const [ playlists, setPlaylists ] = useState<TrackContextType["playlists"]>([]);
     const [ triggerReload, setTriggerReload ] = useState(0);
     const [ hasLocalTracks, setHasLocalTracks ] = useState(false);
+    const [ tracksLoaded, setTracksLoaded ] = useState(false);
     const { status } = useAuth();
 
     const flocalforage = useCallback(() => {
@@ -264,6 +266,7 @@ export function TrackProvider({ children, proxy }: { children: React.ReactNode, 
             try {
                 const tracks = trackArrayToMap(stored as Track[]);
                 setTracks(tracks);
+                setTracksLoaded(true);
                 setPlaylists(Array.from(tracks.keys()));
             }
             catch (e) {
@@ -288,6 +291,7 @@ export function TrackProvider({ children, proxy }: { children: React.ReactNode, 
             }
             const tracks = new Map(Object.entries(result));
             setTracks(tracks);
+            setTracksLoaded(true);
             setPlaylists(Array.from(tracks.keys()));
         }).catch((error: Error) => {
             logging.error(error);
@@ -323,7 +327,7 @@ export function TrackProvider({ children, proxy }: { children: React.ReactNode, 
         });
     }, [tracks]);
 
-    return <TrackContext.Provider value={{tracks, shuffledTracks, playlists, hasLocalTracks, importTracks, addTrack, removeTrack, updateTrack, reload, purgeLocalTracks, loadOnlineTrack}}>
+    return <TrackContext.Provider value={{tracks, tracksLoaded, shuffledTracks, playlists, hasLocalTracks, importTracks, addTrack, removeTrack, updateTrack, reload, purgeLocalTracks, loadOnlineTrack}}>
         { children }
     </TrackContext.Provider>;
 }

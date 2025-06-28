@@ -40,9 +40,10 @@ function PlayerAudioIndicator({
     const [ loading, setLoading ] = useState(false);
     const [ fading, setFading ] = useState(false);
 
-    const playTrack = useCallback(async (audio: HTMLAudioElement, name: string) => {
+    const playTrack = useCallback(async (audioObject: AudioObject, name: string) => {
         try {
-            return await audio.play();
+            await audioObject.context.resume();
+            return await audioObject.audio.play();
         } 
         catch (reason_) {
             const reason = reason_ as DOMException;
@@ -85,14 +86,14 @@ function PlayerAudioIndicator({
             if (message == undefined) {
                 return queue;
             }
-            else if (message.fade === "in") {
+            else if (message.fade === "in" && message.playlist == playlist) {
                 const duration = message.duration;
                 setFading(true);
                 const now = audioObjectRef.current.gain.context.currentTime;
                 const originalVolume = audioObjectRef.current.gain.gain.value;
                 audioObjectRef.current.gain.gain.cancelScheduledValues(now);
                 audioObjectRef.current.gain.gain.setValueAtTime(0, now);
-                playTrack(audioObjectRef.current.audio, track.name).then(() => {
+                playTrack(audioObjectRef.current, track.name).then(() => {
                     if (audioObjectRef.current != null) {
                         audioObjectRef.current.gain.gain.linearRampToValueAtTime(originalVolume, now + duration / 1000);
                         setTimeout(() => {
@@ -113,7 +114,7 @@ function PlayerAudioIndicator({
                     }
                 }).catch(() => setFading(false));
             }
-            else if (message.fade === "out") {
+            else if (message.fade === "out" && message.playlist == playlist) {
                 const duration = message.duration;
                 setFading(true);
                 const now = audioObjectRef.current.gain.context.currentTime;
@@ -139,7 +140,7 @@ function PlayerAudioIndicator({
 
             return queue;
         });
-    }, [fadeInQueue, loading, playTrack, track, fading])
+    }, [fadeInQueue, loading, playTrack, track, fading, playlist])
 
     useEffect(() => {
         if (track == undefined || prevTrackIdRef.current == track.id) return;
@@ -153,7 +154,7 @@ function PlayerAudioIndicator({
             audioObject.gain.gain.setValueAtTime(track.volume, track.position);
             setDuration(audioObject.audio.duration);
             if (track.playing) {
-                playTrack(audioObject.audio, track.name);
+                playTrack(audioObject, track.name);
             }
         }).finally(() => setLoading(false));
     }, [loadTrack, track, playTrack]);
@@ -169,7 +170,7 @@ function PlayerAudioIndicator({
 
         // Verify if the track should be played/paused
         if (track.playing && audioObjectRef.current.audio.paused) {
-            playTrack(audioObjectRef.current.audio, track.name);
+            playTrack(audioObjectRef.current, track.name);
         }
         else if (!track.playing && !audioObjectRef.current.audio.paused) {
             audioObjectRef.current.audio.pause();
