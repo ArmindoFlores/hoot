@@ -22,8 +22,8 @@ export type AutoplayList = {
 
 export function Autoplay() {
     const { tracks, loadOnlineTrack, tracksLoaded } = useTracks();
-    const { loadTrack, fadeInTrack } = useAudio();
-    const { enableAutoplay, fadeTime } = useSettings();
+    const { loadTrack, unloadTrack, fadeInTrack, fadeOutTrack, playing } = useAudio();
+    const { enableAutoplay, fadeTime, stopOtherTracks } = useSettings();
     const { sceneReady } = useOBRBase();
     const hasAutoplayed = useRef(true);
 
@@ -42,36 +42,55 @@ export function Autoplay() {
             const autoplay = sceneMetadata[AUTOPLAY_METADATA_KEY] as (AutoplayList|undefined);
             if (autoplay == undefined || autoplay.length == 0) return;
 
-            for (const track of autoplay) {
-                const playlistTracks = tracks.get(track.playlist);
-                if (playlistTracks == undefined) {
-                    logging.warn(`(autoplay) Tried to play track "${track.track}" from playlist "${track.playlist}", but that playlist doesn't exist`);
-                    continue;
+            const waitForOtherTracks: Promise<string>[] = [];
+            if (stopOtherTracks) {
+                for (const playlist of Object.keys(playing)) {
+                    console.log("Trying to stop", playlist);
+                    waitForOtherTracks.push((async () => { await fadeOutTrack(playlist, fadeTime); return playlist; })());
                 }
-                const playlistTrack = playlistTracks.find(t => t.name === track.track);
-                if (playlistTrack == undefined) {
-                    logging.warn(`(autoplay) Tried to play track "${track.track}" from playlist "${track.playlist}", but that playlist doesn't contain it`);
-                    continue;
+            }
+            Promise.allSettled(waitForOtherTracks).then(playlistsToUnload => {
+                const playlistsToStart = new Set(autoplay.map(t => t.playlist));
+                for (const playlist of playlistsToUnload) {
+                    if (playlist.status === "rejected") {
+                        logging.warn(`Failed to stop fade out playlist`);
+                        continue;
+                    }
+                    if (playlistsToStart.has(playlist.value)) continue;
+                    unloadTrack(playlist.value);
                 }
-                loadOnlineTrack(playlistTrack).then(updatedTrack => {
-                    loadTrack(track.playlist, updatedTrack.source!, updatedTrack.name, updatedTrack.id.toString(), track.shuffle, track.repeatMode).then(audioObject => {
-                        audioObject.audioElements.gain.gain.setValueAtTime(
-                            track.volume,
-                            audioObject.audioElements.gain.context.currentTime
-                        );
-                        audioObject.audioElements.context.resume().then(() => {
-                            if (track.fadeIn) {
-                                fadeInTrack(track.playlist, fadeTime).catch(err => logging.error(err));
-                            }
-                            else {
-                                audioObject.audioElements.audio.play().catch(err => logging.error(err));
-                            }
+                for (const track of autoplay) {
+                    const playlistTracks = tracks.get(track.playlist);
+                    if (playlistTracks == undefined) {
+                        logging.warn(`(autoplay) Tried to play track "${track.track}" from playlist "${track.playlist}", but that playlist doesn't exist`);
+                        continue;
+                    }
+                    const playlistTrack = playlistTracks.find(t => t.name === track.track);
+                    if (playlistTrack == undefined) {
+                        logging.warn(`(autoplay) Tried to play track "${track.track}" from playlist "${track.playlist}", but that playlist doesn't contain it`);
+                        continue;
+                    }
+                    loadOnlineTrack(playlistTrack).then(updatedTrack => {
+                        loadTrack(track.playlist, updatedTrack.source!, updatedTrack.name, updatedTrack.id.toString(), track.shuffle, track.repeatMode).then(audioObject => {
+                            audioObject.audioElements.gain.gain.setValueAtTime(
+                                track.volume,
+                                audioObject.audioElements.gain.context.currentTime
+                            );
+                            audioObject.audioElements.context.resume().then(() => {
+                                if (track.fadeIn) {
+                                    fadeInTrack(track.playlist, fadeTime).catch(err => logging.error(err));
+                                }
+                                else {
+                                    audioObject.audioElements.audio.play().catch(err => logging.error(err));
+                                }
+                            });
                         });
                     });
-                });
-            }
+                }
+            });
+
         });
-    }, [enableAutoplay, sceneReady, tracks, loadOnlineTrack, loadTrack, tracksLoaded, fadeInTrack, fadeTime]);
+    }, [enableAutoplay, sceneReady, tracks, loadOnlineTrack, loadTrack, tracksLoaded, fadeInTrack, fadeOutTrack, fadeTime, stopOtherTracks, playing, unloadTrack]);
 
     return null;
 }
