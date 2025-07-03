@@ -168,7 +168,7 @@ def create_track():
 
     uploaded_file.stream.seek(0)
 
-    file_sample = uploaded_file.stream.read(2048)
+    file_sample = uploaded_file.stream.read()
     mime = magic.from_buffer(file_sample, mime=True)
 
     if not mime.startswith("audio/"):
