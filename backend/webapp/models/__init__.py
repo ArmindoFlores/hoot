@@ -1,4 +1,5 @@
 __all__ = [
+    "Directory",
     "Playlist",
     "PlaylistTrack",
     "Track",
@@ -7,6 +8,7 @@ __all__ = [
 ]
 
 from .db import db
+from .directory import Directory
 from .playlist import Playlist
 from .playlist_track import PlaylistTrack
 from .track import Track

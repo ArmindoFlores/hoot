@@ -1,25 +1,24 @@
 __all__ = [
-    "user"
+    "tracks"
 ]
 
-import datetime
 import io
 import json
 import os
 import re
 import traceback
+import typing
 import uuid
 from urllib.parse import urlparse, unquote
 
 import flask
 import magic
 import requests
-from botocore.exceptions import ClientError
 from sqlalchemy.orm import joinedload
 
 import config
 from .. import middleware, models
-from .utils import jsonify
+from .utils import jsonify, is_valid_track_name, source_if_valid
 
 
 tracks = flask.Blueprint("tracks", __name__, url_prefix="/tracks")
@@ -29,36 +28,6 @@ class FakeFlaskFile:
         self.filename = filename
         self.stream = stream
 
-def generate_presigned_url(key: str, type: str, expiration=3600):
-    try:
-        response = config.S3_CLIENT.generate_presigned_url(
-            "get_object" if type == "download" else "put_object",
-            Params={"Bucket": config.S3_BUCKET_NAME, "Key": key},
-            ExpiresIn=expiration
-        )
-    except ClientError:
-        traceback.print_exc()
-        return None
-
-    return response
-
-def source_if_valid(track: models.Track, generate_new = False):
-    now = datetime.datetime.now(datetime.timezone.utc)
-    tz_aware_expiration = track.source_expiration
-    if tz_aware_expiration is not None:
-        tz_aware_expiration = tz_aware_expiration.replace(tzinfo=datetime.timezone.utc)
-    if tz_aware_expiration is not None and tz_aware_expiration > now:
-        return track.source, tz_aware_expiration.timestamp()
-    if generate_new:
-        expiration_date = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=3600)
-        pre_signed_url = generate_presigned_url(track.object_key, "download")
-        if pre_signed_url is None:
-            return None, None
-        track.source = pre_signed_url
-        track.source_expiration = expiration_date
-        return pre_signed_url, expiration_date.timestamp()
-
-    return None, None
 
 def download_file(source: str):
     response = requests.get(source, stream=True, timeout=60)
@@ -91,6 +60,29 @@ def download_file(source: str):
 
     buffer.seek(0)
     return FakeFlaskFile(stream=buffer, filename=filename)
+
+def get_new_playlists(playlists: typing.List[str], create_new = False):
+    set_playlists = set(playlists)
+    existing_playlists = models.Playlist.query.filter_by(
+        owner_id=middleware.auth.user.id
+    ).all()
+    existing_playlist_names = set(playlist.name for playlist in existing_playlists)
+
+    new_playlists = set_playlists.difference(existing_playlist_names)
+
+    if create_new:
+        new_playlist_objects = [
+            models.Playlist(
+                name=playlist_name,
+                owner_id=middleware.auth.user.id
+            )
+            for playlist_name in new_playlists
+        ]
+        models.db.session.add_all(new_playlist_objects)
+    else:
+        new_playlist_objects = None
+    
+    return existing_playlists, new_playlists, new_playlist_objects
 
 @tracks.route("", methods=["GET"])
 @jsonify
@@ -144,6 +136,45 @@ def get_track(track_id):
         "playlists": [playlist.name for playlist in track.playlists]
     }
 
+@tracks.route("/<track_id>", methods=["PATCH"])
+@jsonify
+@middleware.auth.requires_login
+def edit_track(track_id):
+    if not flask.request.is_json:
+        return {"error": "Invalid request"}
+    
+    name = flask.request.json.get("name", None)
+    playlists = flask.request.json.get("playlists", None)
+
+    track: models.Track = models.Track.query.filter_by(
+        id=int(track_id),
+        owner_id=middleware.auth.user.id
+    ).first()
+
+    if track is None:
+        return {"error": "Invalid track"}
+    
+    if name is not None:
+        if not is_valid_track_name(name):
+            return {"error": "Invalid track name"}
+        track.name = name
+
+    if playlists is not None:
+        existing_playlists, _, new_playlists = get_new_playlists(playlists, True)
+        track.playlists = [playlist for playlist in existing_playlists if playlist.name in playlists] + [playlist for playlist in new_playlists]
+    
+    track_source, source_expiration = source_if_valid(track, True)
+    models.db.session.commit()
+    
+    return {
+        "id": track.id,
+        "name": track.name,
+        "source": track_source,
+        "source_expiration": source_expiration,
+        "size": track.size,
+        "playlists": [playlist.name for playlist in track.playlists]
+    }
+
 @tracks.route("/new", methods=["POST"])
 @jsonify
 @middleware.auth.requires_login
@@ -152,6 +183,7 @@ def create_track():
     track_name = metadata.get("track_name")
     playlists = metadata.get("playlists", [])
     file_source = metadata.get("source")
+    parent = metadata.get("parent", None)
     uploaded_file = flask.request.files.get("file")
 
     if uploaded_file is None and file_source is None:
@@ -166,20 +198,26 @@ def create_track():
     if track_name is None:
         return {"error": "Invalid request"}
 
-    uploaded_file.stream.seek(0)
+    if not is_valid_track_name(track_name):
+        return {"error": "Invalid track name"}
 
-    file_sample = uploaded_file.stream.read(2048)
-    mime = magic.from_buffer(file_sample, mime=True)
-
-    if not mime.startswith("audio/"):
-        return {"error": "Invalid file type (only audio allowed)"}
-    
     uploaded_file.stream.seek(0, 2)
     file_size = uploaded_file.stream.tell()
     uploaded_file.stream.seek(0)
 
     if file_size > middleware.auth.user.available_storage():
         return {"error": "File size exceeds your quota"}
+    
+    mime = magic.from_buffer(uploaded_file.stream.read(), mime=True)
+    uploaded_file.stream.seek(0)
+
+    if not mime.startswith("audio/"):
+        return {"error": "Invalid file type (only audio allowed)"}
+    
+    if parent is not None:
+        parent_dir = models.Directory.query.filter_by(id=parent, owner_id=middleware.auth.user.id).first()
+        if parent_dir is None:
+            return {"error": "Invalid parent directory"}
     
     extension = uploaded_file.filename.rsplit(".", 1)[-1].lower()
     object_key = f"user_{middleware.auth.user.id}/track_{uuid.uuid4()}.{extension}"
@@ -199,29 +237,16 @@ def create_track():
         return {"error": f"Upload failed: {str(e)}", "status_code": 500}
 
     try:
-        set_playlists = set(playlists)
-        existing_playlists = models.Playlist.query.filter_by(
-            owner_id=middleware.auth.user.id
-        ).all()
-        existing_playlist_names = set(playlist.name for playlist in existing_playlists)
+        existing_playlists, _, new_playlist_objects = get_new_playlists(playlists, True)
 
-        new_playlists = set_playlists.difference(existing_playlist_names)
-        new_playlist_objects = [
-            models.Playlist(
-                name=playlist_name,
-                owner_id=middleware.auth.user.id
-            )
-            for playlist_name in new_playlists
-        ]
-        models.db.session.add_all(new_playlist_objects)
-
-        total_playlists = [playlist for playlist in existing_playlists if playlist.name in set_playlists] + [playlist for playlist in new_playlist_objects]
+        total_playlists = [playlist for playlist in existing_playlists if playlist.name in playlists] + [playlist for playlist in new_playlist_objects]
         new_track = models.Track(
             owner_id=middleware.auth.user.id,
             name=track_name,
             size=file_size,
             object_key=object_key,
-            playlists=total_playlists
+            playlists=total_playlists,
+            directory_id=parent
         )
         models.db.session.add(new_track)
         models.db.session.commit()
@@ -237,27 +262,85 @@ def create_track():
         "playlists": [playlist.name for playlist in total_playlists]
     }
 
-@tracks.route("/<track_id>", methods=["DELETE"])
+@tracks.route("", methods=["DELETE"])
 @jsonify
 @middleware.auth.requires_login
-def delete_track(track_id):
+def delete_tracks():
     if not flask.request.is_json:
         return {"error": "Invalid request"}
     
-    track = models.Track.query.filter_by(
-        id=int(track_id),
-        owner_id=middleware.auth.user.id
-    ).first()
-
-    if track is None:
-        return {"error": "Invalid track"}
+    try:
+        track_ids = list(map(int, flask.request.json.get("ids")))
+    except ValueError:
+        return {"error": "Invalid track IDs"}
+    
+    tracks = models.Track.query.filter(
+        models.Track.id.in_(track_ids),
+        models.Track.owner_id == middleware.auth.user.id
+    ).all()
 
     try:
-        config.S3_CLIENT.delete_object(Bucket=config.S3_BUCKET_NAME, Key=track.object_key)
-        models.db.session.delete(track)
+        object_keys = [track.object_key for track in tracks]
+        for track in tracks:
+            models.db.session.delete(track)
+        for object_key in object_keys:
+            config.S3_CLIENT.delete_object(Bucket=config.S3_BUCKET_NAME, Key=object_key)
         models.db.session.commit()
     except Exception as e:
         traceback.print_exc()
-        return {"error": f"Couldn't delete track ({str(e)})", "status_code": 500}
+        return {"error": f"Couldn't delete tracks ({str(e)})", "status_code": 500}
     
     return {"result": "Success"}
+
+@tracks.route("search", methods=["POST"])
+@jsonify
+@middleware.auth.requires_login
+def search():
+    if not flask.request.is_json:
+        return {"error": "Invalid request"}
+    
+    limit = min(flask.request.json.get("limit", 10), 50)
+    offset = flask.request.json.get("offset", 0)
+    search_string = flask.request.json.get("search_string", None)
+    playlists = flask.request.json.get("playlists", None)
+
+    filters = [
+        models.Track.owner_id == middleware.auth.user.id
+    ]
+    if search_string is not None:
+        words = search_string.strip().split()
+        filters.extend([models.Track.name.ilike(f"%{word}%") for word in words])
+    if playlists is not None:
+        filters.append(models.Playlist.name.in_(playlists))
+
+    base_query = models.Track.query
+    if playlists is not None:
+        base_query = base_query.join(
+            models.PlaylistTrack, 
+            models.Track.id == models.PlaylistTrack.track_id
+        ).join(
+                models.Playlist, 
+                models.Playlist.id == models.PlaylistTrack.playlist_id
+        )
+
+    base_query = base_query.filter(
+        *filters
+    ).order_by(models.Track.id)
+
+    count = base_query.count()
+    tracks = base_query.offset(offset).limit(limit).all()
+
+    return {
+        "data": [{
+            "id": track.id,
+            "name": track.name,
+            "source": None,
+            "source_expiration": None,
+            "size": track.size,
+            "type": "TRACK",
+            "directory_id": track.directory_id,
+        } for track in tracks],
+        "total": count,
+        "offset": offset,
+        "limit": limit
+    }

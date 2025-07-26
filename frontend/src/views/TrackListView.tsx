@@ -1,6 +1,6 @@
 import { ArrowRight, DragIndicator, VolumeUp } from "@mui/icons-material";
 import { AudioObject, useAudio } from "../providers/AudioPlayerProvider";
-import { Box, Card, Collapse, IconButton, Input, Typography } from "@mui/material";
+import { Box, Button, Card, Collapse, IconButton, Input, Typography } from "@mui/material";
 import { DndContext, DragEndEvent, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
 import {
     SortableContext,
@@ -15,6 +15,7 @@ import { APP_KEY } from "../config";
 import { CSS } from "@dnd-kit/utilities";
 import OBR from "@owlbear-rodeo/sdk";
 import { Track } from "../types/tracks";
+import { manageTracksModal } from "./ManageTracksView";
 import { useTracks } from "../providers/TrackProvider";
 
 const SORTED_PLAYLISTS_METADATA_KEY = `${APP_KEY}/sortedPlaylists`;
@@ -115,6 +116,10 @@ function updateSortingOrder(sortingOrder: string[], existing: string[]) {
     return [...toKeep, ...toAdd];
 }
 
+function openManageTracksPopup() {
+    OBR.modal.open(manageTracksModal);
+}
+
 export function TrackListView() {
     const { tracks, playlists, loadOnlineTrack } = useTracks();
     const { playing, loadTrack } = useAudio();
@@ -199,13 +204,18 @@ export function TrackListView() {
             strategy={verticalListSortingStrategy}
         >
             <Box sx={{ p: 2, overflow: "auto", height: "calc(100vh - 50px)", userSelect: "none" }}>
-                <Input
-                    className="track-search"
-                    placeholder="Enter a track name or a #playlist"
-                    value={search}
-                    onChange={event => setSearch(event.target.value)}
-                    sx={{ width: "100%" }}
-                />
+                <Box sx={{ display: "flex", flexDirection: "row", gap: 1 }}>
+                    <Input
+                        className="track-search"
+                        placeholder="Enter a track name or a #playlist"
+                        value={search}
+                        onChange={event => setSearch(event.target.value)}
+                        sx={{ width: "100%" }}
+                    />
+                    <Button variant="outlined" onClick={openManageTracksPopup}>
+                        Manage
+                    </Button>
+                </Box>
                 <Box sx={{ p: 1 }} />
                 <Box>
                     {

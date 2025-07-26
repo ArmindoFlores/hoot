@@ -25,6 +25,7 @@ class User(db.Model):
 
     playlists = db.relationship("Playlist", back_populates="owner")    
     tracks = db.relationship("Track", back_populates="owner")  
+    directories = db.relationship("Directory", back_populates="owner")  
 
     def __repr__(self):
         return f"<User id={self.id} username={self.username} email={self.email} member={self.patreon_member} patreon_id={self.patreon_id}>"

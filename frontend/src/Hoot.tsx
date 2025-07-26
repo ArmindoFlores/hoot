@@ -7,6 +7,7 @@ import { AuthProvider } from "./providers/AuthProvider";
 import { ControlledPlayerProvider } from "./providers/ControlledPlayerProvider";
 import { GMView } from "./views/GMView";
 import { ImportLocalTracksModal } from "./views/ImportLocalTracksView";
+import { ManageTracksModal } from "./views/ManageTracksView";
 import { OBRThemeProvider } from "./providers/OBRThemeProvider";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { PlayerView } from "./views/PlayerView";
@@ -51,20 +52,15 @@ function MainApp({ proxy = false }: { proxy?: boolean }) {
         return <Typography>Could not load Owlbear Extension.</Typography>;
     }
     if (player.role == "GM") { 
-        return <PersistQueryClientProvider
-            client={queryClient}
-            persistOptions={{ persister }}
-        >
-                <AuthProvider proxy={proxy}>
-                    <TrackProvider proxy={proxy}>
-                        <SettingsProvider proxy={proxy}>
-                            <AudioPlayerProvider>
-                                <GMView />
-                            </AudioPlayerProvider>
-                        </SettingsProvider>
-                    </TrackProvider>
-                </AuthProvider>
-        </PersistQueryClientProvider>;
+        return <AuthProvider proxy={proxy}>
+            <TrackProvider proxy={proxy}>
+                <SettingsProvider proxy={proxy}>
+                    <AudioPlayerProvider>
+                        <GMView />
+                    </AudioPlayerProvider>
+                </SettingsProvider>
+            </TrackProvider>
+        </AuthProvider>;
     }
     else {
         return <ControlledPlayerProvider>
@@ -81,28 +77,29 @@ function AddTrackModal() {
         return;
     }
 
-    return <PersistQueryClientProvider
-        client={queryClient}
-        persistOptions={{ persister }}
-    >
-        <AuthProvider proxy={false}>
-            <TrackProvider proxy={false}>
-                <AddTrackView />
-            </TrackProvider>
-        </AuthProvider>
-    </PersistQueryClientProvider>;
+    return <AuthProvider proxy={false}>
+        <TrackProvider proxy={false}>
+            <AddTrackView />
+        </TrackProvider>
+    </AuthProvider>;
 }
 
 export default function Hoot() {
-    return <BrowserRouter>
-        <Routes>
-            <Route path="/" element={<OBRRoute><MainApp /></OBRRoute>} />
-            <Route path="/add-track" element={<OBRRoute><AddTrackModal /></OBRRoute>} />
-            <Route path="/import-local-tracks" element={<OBRRoute><ImportLocalTracksModal /></OBRRoute>} />
-            <Route path="/signup" element={<SignUpView />} />
-            <Route path="/verify/:verificationCode" element={<VerifyEmailView />} />
-            <Route path="/tos" element={<TermsOfServiceView />} />
-            <Route path="/privacy" element={<PrivacyPolicyView />} />
-        </Routes>
-    </BrowserRouter>;
+    return <PersistQueryClientProvider
+            client={queryClient}
+            persistOptions={{ persister }}
+        >
+            <BrowserRouter>
+            <Routes>
+                <Route path="/" element={<OBRRoute><MainApp /></OBRRoute>} />
+                <Route path="/add-track" element={<OBRRoute><AddTrackModal /></OBRRoute>} />
+                <Route path="/manage-tracks" element={<OBRRoute><ManageTracksModal /></OBRRoute>} />
+                <Route path="/import-local-tracks" element={<OBRRoute><ImportLocalTracksModal /></OBRRoute>} />
+                <Route path="/signup" element={<SignUpView />} />
+                <Route path="/verify/:verificationCode" element={<VerifyEmailView />} />
+                <Route path="/tos" element={<TermsOfServiceView />} />
+                <Route path="/privacy" element={<PrivacyPolicyView />} />
+            </Routes>
+        </BrowserRouter>
+    </PersistQueryClientProvider>;
 }

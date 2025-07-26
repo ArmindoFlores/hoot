@@ -4,11 +4,9 @@ __all__ = [
 
 import datetime
 import logging
-import traceback
 
 import flask
 import patreon
-from sqlalchemy.orm.session import object_session
 
 import config
 from .. import middleware, models
@@ -33,9 +31,12 @@ def get_or_update_patreon_oauth_token(user: models.User, code = None):
                 "access_token": user.patreon_access_token,
             }
     else:
-        tokens = oauth_client.get_tokens(code, config.OAUTH_REDIRECT)
+        if code is not None:
+            tokens = oauth_client.get_tokens(code, config.OAUTH_REDIRECT)
+        else:
+            tokens = None
 
-    if "expires_in" in tokens:
+    if tokens is not None and "expires_in" in tokens:
         user.patreon_access_token = tokens["access_token"]
         user.patreon_refresh_token = tokens["refresh_token"]
         user.patreon_access_token_expiration = now + datetime.timedelta(seconds=tokens["expires_in"])

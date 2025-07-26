@@ -37,8 +37,10 @@ CORS(
 )
 
 app.register_blueprint(webapp.routes.auth)
+app.register_blueprint(webapp.routes.playlists)
 app.register_blueprint(webapp.routes.user)
 app.register_blueprint(webapp.routes.tracks)
+app.register_blueprint(webapp.routes.storage)
 app.register_blueprint(webapp.routes.webhooks)
 
 Session(app)

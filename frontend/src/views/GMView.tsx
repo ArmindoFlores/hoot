@@ -10,6 +10,7 @@ import { SceneView } from "./SceneView";
 import { SettingsView } from "./Settings";
 import { TrackListView } from "./TrackListView";
 import { useAudio } from "../providers/AudioPlayerProvider";
+import { useAuth } from "../providers/AuthProvider";
 import { useOBRBroadcast } from "../hooks/obr";
 import { useTracks } from "../providers/TrackProvider";
 
@@ -37,6 +38,7 @@ export function GMView() {
     const { sendMessage, registerMessageHandler } = useOBRBroadcast<MessageContent>();
     const { playing, setVolume } = useAudio();
     const { addTrack, tracks, } = useTracks();
+    const { status } = useAuth();
     const [selectedTab, setTab] = useState(0);
 
     useEffect(() => {
@@ -111,7 +113,7 @@ export function GMView() {
                 <Tab label="Tracks" />
                 <Tab label="Player" />
                 <Tab label="Scene" />
-                <Tab label="Export" />
+                <Tab label="Export" sx={{display: status === "LOGGED_IN" ? "none" : undefined}} />
                 <Tab label="Settings" />
             </Tabs>
         </Box>
