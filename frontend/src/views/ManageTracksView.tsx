@@ -150,13 +150,15 @@ function TrackItemElement(
     }
 ) {
     const { attributes, listeners, setNodeRef, active } = useDraggable({
-        id: item.id,
+        id: `track-${item.id}`,
         data: {
             itemsToDrag: selected ? selectedItems : [item as SelectedItemType]
         }
     });
     const [hovered, setHovered] = useState(false);
-    const shouldHide = active?.data?.current == undefined ? false : active.data.current.itemsToDrag.some((dragged: SelectedItemType) => dragged.id == item.id);
+    const shouldHide = active?.data?.current == undefined ? false : active.data.current.itemsToDrag.some(
+        (dragged: SelectedItemType) => dragged.id == item.id && dragged.type == item.type
+    );
 
     return <Card
         ref={setNodeRef}
@@ -207,16 +209,18 @@ function DirectoryItemElement(
     }
 ) {
     const { attributes, listeners, setNodeRef: setDraggableNodeRef, active } = useDraggable({
-        id: item.id,
+        id: `directory-${item.id}`,
         data: {
             itemsToDrag: selected ? selectedItems : [item as SelectedItemType]
         }
     });
     const { setNodeRef: setDroppableNodeRef } = useDroppable({
-        id: item.id,
+        id: `directory-${item.id}`
     });
     const [hovered, setHovered] = useState(false);
-    const shouldHide = active?.data?.current == undefined ? false : active.data.current.itemsToDrag.some((dragged: SelectedItemType) => dragged.id == item.id);
+    const shouldHide = active?.data?.current == undefined ? false : active.data.current.itemsToDrag.some(
+        (dragged: SelectedItemType) => dragged.id == item.id && dragged.type == item.type
+    );
 
     return <Card
         ref={ref => { setDraggableNodeRef(ref); setDroppableNodeRef(ref); }}
@@ -317,12 +321,13 @@ function BreadcrumbsItem({ text, id, onClick, hovered }: { text: string, id: str
     </Typography>
 }
 
-function idFromString(idString: string) {
+function idAndTypeFromString(idString: string): SelectedItemType | { type: "DIRECTORY", id: null } {
     const split = idString.split("-");
     if (split[split.length-1] == "null") {
-        return null;
+        return {type: "DIRECTORY", id: null};
     }
-    return parseInt(split[split.length-1]);
+    const type = split[0] === "directory" ? "DIRECTORY" : "TRACK";
+    return {type, id: parseInt(split[1])};
 }
 
 function sortDirectoryContents(item1: DirectoryItem, item2: DirectoryItem): number {
@@ -1242,8 +1247,13 @@ export function ManageTracksModal() {
     const handleDragStart = (event: DragStartEvent) => {
         const { active } = event;
         setHoveredDroppable(null);
-        setActiveItem(
-            (directoryContentsQuery.data ?? []).find(item => item.id == active.id) ?? null
+        setActiveItem(() => {
+            const activeObj = idAndTypeFromString(active.id as string);
+            if (activeObj == null) {
+                return null;
+            }
+            return (directoryContentsQuery.data ?? []).find(item => item.id == activeObj.id && item.type == activeObj.type) ?? null;
+        }
         );
         setDragCount(active.data.current?.itemsToDrag?.length ?? 0);
     }
@@ -1259,25 +1269,30 @@ export function ManageTracksModal() {
         setHoveredDroppable(null);
         if (!over) return;
         
-        const itemsToDrag: SelectedItemType[] = active.data.current?.itemsToDrag || [];
-
-        const overId = typeof over.id === "number" ? over.id : idFromString(over.id);
-
-        if (overId == active.id) {
+        
+        const overObj = idAndTypeFromString(over.id as string);
+        if (overObj == null || overObj.type != "DIRECTORY") {
+            return;
+        }
+        
+        if (over.id == active.id) {
             // Drag didn't move
             return;
         }
+
+        const activeObj = idAndTypeFromString(over.id as string);
+        const itemsToDrag: SelectedItemType[] = active.data.current?.itemsToDrag || [activeObj];
         
         // Client-side check to make sure we're not dragging directories into
         // themselves
         for (const item of itemsToDrag) {
-            if (item.id == overId) {
+            if (item.id == overObj.id && item.type == overObj.type) {
                 OBR.notification.show("Can't move directory into itself", "ERROR");
                 return;
             }
         }
 
-        createQueryFn(() => apiService.moveItems(itemsToDrag, overId as number))().then(() => {
+        createQueryFn(() => apiService.moveItems(itemsToDrag, overObj.id as number))().then(() => {
             directoryContentsQuery.refetch();
         }).catch((error: Error) => {
             OBR.notification.show(error.message, "ERROR");
