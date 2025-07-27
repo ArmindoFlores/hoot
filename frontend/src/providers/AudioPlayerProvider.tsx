@@ -9,6 +9,7 @@ import uniqueId from "lodash/uniqueId";
 import { useOBRBroadcast } from "../hooks/obr";
 import { useThrottled } from "../hooks";
 import { useTracks } from "./TrackProvider";
+import { withTimeout } from "../utils";
 
 export interface AudioElements {
     nextTrack?: Track;
@@ -198,25 +199,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         gain.gain.setValueAtTime(1, 0);
         globalGainRef.current = gain;
         gain.connect(context.destination);
-
-        function handleStateChange() {
-            if (context.state == "suspended") {
-                logging.warn("Audio Context was suspended, resuming");
-                context.resume();
-            }
-            else if (context.state == "closed") {
-                logging.error("Audio Context has closed unexpectedly");
-            }
-        }
-        if (context.state == "suspended") {
-            context.resume();
-        }
-        context.addEventListener("statechange", handleStateChange);
-
-        return () => {
-            gain.disconnect();
-            context.removeEventListener("statechange", handleStateChange);
-        }
+        logging.info("Initialized audio context.");
     }, []);
 
     useEffect(() => {
@@ -313,6 +296,26 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         });
     }, []);
 
+    const generateOnTrackEndFunction = useCallback((id: string, loadTrack: (id: string, url: string, name: string, trackId?: string, shuffle?: boolean, repeatMode?: RepeatMode) => Promise<{ audioObject: AudioObject, audioElements: AudioElements }>) => {
+        return () => {
+            const elements = audioElementsRef.current[id];
+            if (elements == undefined) {
+                logging.warn(`Track elements were removed before processing onEnd()`);
+                return;   
+            }
+            if (elements.nextTrack == undefined) {
+                setPlaying(prev => (prev[id] == undefined ? prev : {
+                    ...prev, 
+                    [id]: {...prev[id], updateCount: prev[id].updateCount+1 }
+                }));
+                return;
+            }
+            loadOnlineTrack(elements.nextTrack).then(nextTrack => {
+                loadTrack(id, nextTrack.source!, nextTrack.name, nextTrack.id?.toString?.());
+            });
+        };
+    }, [loadOnlineTrack]);
+
     const loadTrack = useCallback((id: string, url: string, name: string, trackId?: string, shuffle?: boolean, repeatMode?: RepeatMode): Promise<{ audioObject: AudioObject, audioElements: AudioElements }> => {
         return new Promise((resolve, reject) => {
             setPlaying(prev => {
@@ -351,23 +354,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
                         triggerEvent();
                     },
                     err => reject(err ?? new Error("Audio failed to load")),
-                    () => {
-                        const elements = audioElementsRef.current[id];
-                        if (elements == undefined) {
-                            logging.warn(`Track elements for ${trackId} were removed before processing onEnd()`);
-                            return;   
-                        }
-                        if (elements.nextTrack == undefined) {
-                            setPlaying(prev => (prev[id] == undefined ? prev : {
-                                ...prev, 
-                                [id]: {...prev[id], updateCount: prev[id].updateCount+1 }
-                            }));
-                            return;
-                        }
-                        loadOnlineTrack(elements.nextTrack).then(nextTrack => {
-                            loadTrack(id, nextTrack.source!, nextTrack.name, nextTrack.id?.toString?.());
-                        });
-                    }
+                    generateOnTrackEndFunction(id, loadTrack)
                 );
                 audioElementsRef.current[id] = audioElements;
                 return {
@@ -376,7 +363,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
                 };
             });
         });
-    }, [loadOnlineTrack, tracks, triggerEvent]);
+    }, [tracks, triggerEvent, generateOnTrackEndFunction]);
 
     const updateTrack = useCallback((id: string, trackId: string, shuffle?: boolean, repeatMode?: RepeatMode) => {
         setPlaying(prev => {            
@@ -400,6 +387,68 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
             };
         });  
     }, []);
+
+    useEffect(() => {
+        const context = audioContextRef.current;
+        if (context.state == "suspended") {
+            // Context is suspended, likely due to autoplay issues
+            // Let's try to restart it, but abort after 250ms (the promise)
+            // might never return otherwise.
+            withTimeout(() => context.resume(), 250).then(
+                () => logging.info("Resumed audio context playback.")
+            ).catch(
+                () => logging.error("Failed to resume audio context.")
+            );
+        }
+        else if (context.state == "closed") {
+            // Something went wrong and the context was closed.
+            // We have to re-create it and reset all playback.
+            logging.info("Audio context was closed, re-creating it...");
+
+            // Disconnect global gain
+            let previousGain = 1;
+            if (globalGainRef.current) {
+                previousGain = globalGainRef.current.gain.value;
+                globalGainRef.current.disconnect();
+            }
+            const context = audioContextRef.current = new AudioContext();
+            const gain = context.createGain();
+            gain.gain.setValueAtTime(previousGain, 0);
+            globalGainRef.current = gain;
+            gain.connect(context.destination);
+
+            // For each playing track, replace their AudioElements
+            for (const [id, audioElements] of Object.entries(audioElementsRef.current)) {
+                const newAudioObject = setupAudioNodes(
+                    context,
+                    gain,
+                    "dummy", // does not matter
+                    { source: audioElements.audio.src } as Track, // other fields do not matter
+                    false, // does not matter
+                    "no-repeat", // does not matter
+                    loadedTrack => {
+                        loadedTrack.audioElements.gain.gain.setValueAtTime(audioElements.gain.gain.value, 0);
+                        loadedTrack.audioElements.audio.currentTime = audioElements.audio.currentTime;
+                        if (!audioElements.audio.paused) {
+                           loadedTrack.audioElements.audio.play();
+                        }
+                        triggerEvent();
+                    },
+                    err => logging.error(err ?? "Track failed to load after re-creating audio context"),
+                    generateOnTrackEndFunction(id, loadTrack)
+                );
+                audioElements.audio = newAudioObject.audioElements.audio;
+                audioElements.context = newAudioObject.audioElements.context;
+                audioElements.gain = newAudioObject.audioElements.gain;
+                audioElements.onEnd = newAudioObject.audioElements.onEnd;
+                audioElements.onError = newAudioObject.audioElements.onError;
+                audioElements.onLoad = newAudioObject.audioElements.onLoad;
+                audioElements.source = newAudioObject.audioElements.source;
+            }
+
+            logging.info("Successfully re-created audio context.");
+        }
+    }, [generateOnTrackEndFunction, loadTrack, triggerEvent, triggeredEventCount]);
 
     const getTrack = useCallback((id: string) => {
         return playing[id];
