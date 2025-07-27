@@ -1,14 +1,18 @@
-import { Box, Collapse, IconButton, Slider, Typography } from "@mui/material";
+import { Box, Button, Collapse, IconButton, Slider, Typography } from "@mui/material";
 import { DndContext, DragEndEvent, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
+import { SerializedTrack, loadPreviousTrackList, useAudio } from "../providers/AudioPlayerProvider";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { faVolumeHigh, faVolumeLow, faVolumeMute, faVolumeOff } from "@fortawesome/free-solid-svg-icons";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { APP_KEY } from "../config";
 import { AudioControls } from "../components/AudioControls";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import OBR from "@owlbear-rodeo/sdk";
-import { useAudio } from "../providers/AudioPlayerProvider";
+import { Track } from "../types/tracks";
+import { expired } from "../utils";
+import { logging } from "../logging";
+import { useTracks } from "../providers/TrackProvider";
 
 const SORTED_PLAYLISTS_METADATA_KEY = `${APP_KEY}/sortedPlayingPlaylists`;
 
@@ -18,8 +22,19 @@ function updateSortingOrder(sortingOrder: string[], existing: string[]) {
     return [...toKeep, ...toAdd];
 }
 
+function findTrack(trackId: number, tracks: Map<string, Track[]>) {
+    for (const trackList of tracks.values()) {
+        const track = trackList.find(t => t.id === trackId);
+        if (track != undefined) {
+            return track;
+        }
+    }
+    return undefined;
+}
+
 export function AudioPlayerView() {
-    const { playing, volume, setVolume } = useAudio();
+    const { tracks, loadOnlineTrack } = useTracks();
+    const { playing, volume, setVolume, loadTrack } = useAudio();
     const playingPlaylists = useMemo(() => Object.keys(playing), [playing]);
     const sensors = useSensors(
         useSensor(PointerSensor),
@@ -33,6 +48,7 @@ export function AudioPlayerView() {
     const [ volumeHovered, setVolumeHovered ] = useState(false);
     const [ sortedPlaylists, setSortedPlaylists ] = useState<string[]>([]);
     const [ playlistSortOrder, setPlaylistSortOrder ] = useState<string[]|null>(null);
+    const [ previouslyPlaying, setPreviouslyPlaying ] = useState<SerializedTrack[]|null>(null);
 
     const toggleMute = () => {
         if (volume === 0) {
@@ -59,6 +75,45 @@ export function AudioPlayerView() {
         }
     }
 
+    const restorePreviouslyPlaying = useCallback(async () => {
+        const loadedTrackPromises: [SerializedTrack, Promise<Track>][] = [];
+        logging.info("Previously playing", previouslyPlaying);
+        for (const serializedTrack of previouslyPlaying ?? []) {
+            const track = findTrack(serializedTrack.trackId, tracks);
+            if (track == undefined) continue;
+            loadedTrackPromises.push([serializedTrack, track.source == undefined || expired(track.source_expiration) ? loadOnlineTrack(track) : Promise.resolve(track)]);
+        }
+
+        const values = await Promise.allSettled(loadedTrackPromises.map(v => v[1]));
+        const loadedTracks = values.map((value, idx) => (
+            [loadedTrackPromises[idx][0], value.status === "rejected" ? null : value.value] as [SerializedTrack, Track|null]
+        )).filter(value => value[1] != null && value[1].source != undefined) as [SerializedTrack, Track][];
+        
+        logging.info("Loaded tracks", loadedTracks);
+        for (const [serializedTrack, loadedTrack] of loadedTracks) {
+            loadTrack(
+                serializedTrack.channelId, 
+                loadedTrack.source!, 
+                loadedTrack.name, 
+                String(serializedTrack.trackId), 
+                serializedTrack.shuffle, 
+                serializedTrack.repeatMode
+            ).then(audio => {
+                audio.audioElements.gain.gain.setValueAtTime(serializedTrack.volume, 0);
+                audio.audioElements.audio.currentTime = serializedTrack.position;
+                if (serializedTrack.playing) {
+                    audio.audioElements.audio.play();
+                }
+            });
+        }
+    }, [loadOnlineTrack, loadTrack, previouslyPlaying, tracks]);
+
+    useEffect(() => {
+        const previouslyPlaying = loadPreviousTrackList();
+        if (previouslyPlaying == null) return;
+        setPreviouslyPlaying(previouslyPlaying.tracks);
+    }, []);
+
     useEffect(() => {
         if (volume !== 0) {
             setMute(false);
@@ -82,12 +137,20 @@ export function AudioPlayerView() {
         <Box sx={{ p: 2, mb: 2 }}>
             <Typography variant="h5">Currently Playing</Typography>
             {
-                playingPlaylists.length === 0 &&
-                <Typography>
-                    No tracks are playing. 
-                    Go to the track list tab
-                    to queue up.
-                </Typography>
+                playingPlaylists.length === 0 && <Box>
+                    <Typography>
+                        No tracks are playing. 
+                        Go to the track list tab
+                        to queue up.
+                    </Typography>
+                    <Box sx={{ p: 1 }} />
+                    {
+                        previouslyPlaying != null && previouslyPlaying.length > 0 &&
+                        <Button variant="outlined" onClick={() => restorePreviouslyPlaying()}>
+                            Restore Previously Playing
+                        </Button>
+                    }
+                </Box>
             }
             <Box sx={{ p: 1 }}/>
             <DndContext

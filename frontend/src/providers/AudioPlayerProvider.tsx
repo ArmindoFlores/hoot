@@ -1,8 +1,8 @@
+import { APP_KEY, INTERNAL_BROADCAST_CHANNEL } from "../config";
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { RepeatMode, Track } from "../types/tracks";
 
-import { INTERNAL_BROADCAST_CHANNEL } from "../config";
 import { MessageContent } from "../types/messages";
 import { logging } from "../logging";
 import uniqueId from "lodash/uniqueId";
@@ -73,6 +73,21 @@ interface AudioPlayerControls {
     seek: (position: number) => void;
 }
 
+export interface SerializedTrack {
+    channelId: string;
+    trackId: number;
+    playing: boolean;
+    repeatMode: RepeatMode;
+    shuffle: boolean;
+    volume: number;
+    position: number;
+}
+
+export type SerializedTrackList = {
+    tracks: SerializedTrack[];
+    timestamp: number;
+};
+
 const AudioPlayerContext = createContext<GlobalAudioContextType|null>(null);
 
 function uuid() {
@@ -98,6 +113,36 @@ function cleanupAudioNodes(elements: AudioElements) {
     elements.audio.load();
     elements.source.disconnect();
     elements.gain.disconnect();
+}
+
+function serializeTrack(channelId: string, audioObject: AudioObject, audioElements: AudioElements): SerializedTrack {
+    return {
+        channelId,
+        trackId: audioObject.track.id,
+        playing: !audioElements.audio.paused,
+        repeatMode: audioObject.repeatMode,
+        shuffle: audioObject.shuffle,
+        volume: audioElements.gain.gain.value,
+        position: audioElements.audio.currentTime
+    };
+}
+
+function saveCurrentTrackList(tracks: { audioObject: AudioObject, audioElements: AudioElements, channelId: string }[]) {
+    const jsObject = tracks.map(track => serializeTrack(track.channelId, track.audioObject, track.audioElements));
+    const jsObjectString = JSON.stringify({
+        timestamp: (new Date()).getTime(),
+        tracks: jsObject
+    });
+    localStorage.setItem(`${APP_KEY}/previous-track-list`, jsObjectString);
+}
+
+export function loadPreviousTrackList(): SerializedTrackList|null {
+    const jsObjectString = localStorage.getItem(`${APP_KEY}/previous-track-list`);
+    if (jsObjectString == null) {
+        return null;
+    }
+    const jsObject = JSON.parse(jsObjectString);
+    return jsObject;
 }
 
 function setupAudioNodes(
@@ -185,6 +230,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     const audioContextRef = useRef(new AudioContext());
     const globalGainRef = useRef<GainNode>();
     const audioElementsRef = useRef<Record<string, AudioElements>>({});
+    const audioObjectsRef = useRef<Record<string, AudioObject|null>>({});
     const [playing, setPlaying] = useState<Record<string, AudioObject|null>>({});
     const [volume, setVolume] = useState(1);
     const [triggeredEventCount, setTriggeredEventCount] = useState(0);
@@ -208,6 +254,25 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         globalGainRef.current.gain.cancelScheduledValues(now);
         globalGainRef.current.gain.setValueAtTime(volume, now);
     }, [volume]);
+
+    useEffect(() => {
+        audioObjectsRef.current = playing;
+    }, [playing]);
+
+    useEffect(() => {
+        const id = setInterval(() => {
+            saveCurrentTrackList(Object.entries(audioObjectsRef.current).map(([id, obj]) => {
+                const el = audioElementsRef.current[id];
+                if (obj == null || el == undefined) return null;
+                return {
+                    channelId: id,
+                    audioObject: obj,
+                    audioElements: el
+                };
+            }).filter(value => value != null));
+        }, 5000);
+        return () => clearInterval(id);
+    }, []);
 
     useEffect(() => {
         sendMessage(
