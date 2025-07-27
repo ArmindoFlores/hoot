@@ -31,6 +31,7 @@ CORS(
                 "http://127.0.0.1:*",
                 "https://owlbear.rodeo",
                 "https://hoot.armindo.eu",
+                "https://hoot-2.onrender.com",
             ]
         }
     }
