@@ -188,6 +188,10 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     const [volume, setVolume] = useState(1);
     const [triggeredEventCount, setTriggeredEventCount] = useState(0);
 
+    const triggerEvent = useCallback(() => {
+        setTriggeredEventCount(old => old + 1);
+    }, []);
+
     useEffect(() => {
         const context = audioContextRef.current;
         const gain = context.createGain();
@@ -243,13 +247,9 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
                 } 
             },
             undefined,
-            "ALL"
+            "REMOTE"
         );
     }, [playing, sendMessage, triggeredEventCount]);
-
-    const triggerEvent = useCallback(() => {
-        setTriggeredEventCount(old => old + 1);
-    }, []);
 
     const getNextTrack = useCallback((id: string, respectRepeatMode: boolean = false) => {
         const current = playing[id];

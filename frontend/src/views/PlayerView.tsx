@@ -11,6 +11,7 @@ import OBR from "@owlbear-rodeo/sdk";
 import { PlayerTrack } from "../types/tracks";
 import { logging } from "../logging";
 import { useOBRBroadcast } from "../hooks/obr";
+import { withTimeout } from "../utils";
 
 interface PlayerAudioIndicatorProps {
     playlist: string;
@@ -42,13 +43,13 @@ function PlayerAudioIndicator({
 
     const playTrack = useCallback(async (audioObject: AudioObject, name: string) => {
         try {
-            await audioObject.context.resume();
+            await withTimeout(() => audioObject.context.resume(), 1000);
             return await audioObject.audio.play();
         } 
         catch (reason_) {
             const reason = reason_ as DOMException;
             logging.error(reason, reason.name);
-            if (reason.name === "NotAllowedError") {
+            if (reason.name === "NotAllowedError" || reason.name === "TimeoutError") {
                 // Autoplay issue
                 OBR.notification.show(
                     "Autoplay is disabled. Please press the 'Reset Playback' button in the Hoot page.", 
@@ -164,7 +165,6 @@ function PlayerAudioIndicator({
 
         // Verify if there is a significant discrepancy in the track position:
         if (Math.abs(track.position - audioObjectRef.current.audio.currentTime) > 1) {
-            logging.info("Adjusting track position");
             audioObjectRef.current.audio.currentTime = track.position;
         }
 
@@ -246,7 +246,7 @@ export function PlayerView() {
     const [ mute, setMute ] = useState(false);
     const [ autoplayErrorOccurred, setAutoplayErrorOccurred ] = useState(false);
     const [ triggerPlayback, setTriggerPlayback ] = useState(0);
-    const { registerMessageHandler } = useOBRBroadcast<MessageContent>();
+    const { registerMessageHandler, sendMessage } = useOBRBroadcast<MessageContent>();
 
     const playlists = useMemo(() => Object.keys(tracks), [tracks]);
 
@@ -288,11 +288,27 @@ export function PlayerView() {
             else if (message.type === "fade") {
                 // Handled by children
             }
+            else if (message.type === "hello") {
+                // Handled by GM
+            }
             else {
                 logging.error(`Received invalid message of type '${message.type}':`, message);
             }
         });
     }, [registerMessageHandler]);
+
+    useEffect(() => {
+        // Send message after mounting
+        sendMessage(
+            INTERNAL_BROADCAST_CHANNEL,
+            {
+                type: "hello",
+                payload: undefined
+            },
+            undefined,
+            "REMOTE"
+        );
+    }, [sendMessage]);
 
     return <Box sx={{ p: 2 }}>
         <Box>

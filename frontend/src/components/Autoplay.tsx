@@ -45,7 +45,7 @@ export function Autoplay() {
             const waitForOtherTracks: Promise<string>[] = [];
             if (stopOtherTracks) {
                 for (const playlist of Object.keys(playing)) {
-                    console.log("Trying to stop", playlist);
+                    logging.info("Trying to stop", playlist);
                     waitForOtherTracks.push((async () => { await fadeOutTrack(playlist, fadeTime); return playlist; })());
                 }
             }

@@ -7,7 +7,6 @@ import { useEffect, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { Line } from "rc-progress";
 import OBR from "@owlbear-rodeo/sdk";
-import { User } from "../types/user";
 import { byteSize } from "../utils";
 import { faPatreon } from "@fortawesome/free-brands-svg-icons";
 import { useAuth } from "../providers/AuthProvider";
@@ -16,57 +15,6 @@ import { useSettings } from "../providers/SettingsProvider";
 
 const PATREON_URL = `https://www.patreon.com/oauth2/authorize?response_type=code&client_id=${PATREON_CLIENT_ID}&redirect_uri=${PATREON_REDIRECT_URI}&state=123`;
 type ModalType = "PATREON" | "UNLINK_PATREON";
-
-function LoginForm({ onLogin }: { onLogin: (user: User) => void }) {
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-
-    const handleLogin = (event: React.FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-        apiService.login(email, password).then(result => {   
-            if (isError(result)) {
-                throw new Error(result.error);
-            }
-            OBR.notification.show("Login successful", "SUCCESS");
-            onLogin(result);
-        }).catch((error: Error) => {
-            OBR.notification.show(error.message, "ERROR");
-        });
-    };
-
-    return <Box component="form" action="#" onSubmit={handleLogin} sx={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center" }}>
-        <Box sx={{ display: "flex", flexDirection: "row", gap: 2, alignItems: "center", justifyContent: "flex-start"}}>
-            <Typography fontWeight="bold">Email</Typography>
-            <Input
-                sx={{textAlign: "left"}}
-                name="email"
-                value={email}
-                type="email"
-                onChange={e => setEmail(e.target.value)}
-            />
-        </Box>
-        <Box sx={{ p: 1 }} />
-        <Box sx={{ display: "flex", flexDirection: "row", gap: 2, alignItems: "end", justifyContent: "flex-start"}}>
-            <Typography fontWeight="bold">Password</Typography>
-            <Input
-                sx={{textAlign: "left"}}
-                name="password"
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-            />
-        </Box>
-        <Box sx={{ p: 1 }} />
-        <Box sx={{display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-evenly"}}>
-            <Button disabled={email == "" || password == ""} type="submit" variant="outlined">
-                Log In
-            </Button>
-            <Typography style={{marginLeft: "1rem"}}>
-                Or <Link href="/signup" target="_blank" style={{color: "white", fontWeight: "bold"}}>create your account</Link>
-            </Typography>
-        </Box>
-    </Box>;
-}
 
 export function SettingsView() {
     const { 
@@ -82,7 +30,7 @@ export function SettingsView() {
     const [ fadeInputValue, setFadeInputValue ] = useState("");
     const [ openedModal, setModalOpened ] = useState<ModalType|null>(null);
 
-    const { status, user, doLogin, doLogout, refresh } = useAuth();
+    const { user, doLogout, refresh } = useAuth();
 
     const closeModal = () => {
         setModalOpened(null);
@@ -150,14 +98,7 @@ export function SettingsView() {
                 <Box>
                     <Typography variant="h5">Profile</Typography>
                     {
-                        status === "LOGGED_OUT" && <>
-                            <Typography>Login to host your tracks directly in Hoot, and sync across all devices.</Typography>
-                            <Box sx={{ p: 1 }} />
-                            <LoginForm onLogin={doLogin}></LoginForm>
-                        </>
-                    }
-                    {
-                        status === "LOGGED_IN" && user && <>
+                        user && <>
                             <Box sx={{display: "flex", flexDirection: "row"}}>
                                 <Typography fontWeight="bold">Username:</Typography>
                                 <Typography sx={{ml: 0.5}}>{ user.username }</Typography>

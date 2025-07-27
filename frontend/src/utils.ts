@@ -33,3 +33,25 @@ export function expired(timestampSeconds: number|undefined|null): boolean {
     const nowSeconds = Date.now() / 1000;
     return nowSeconds > timestampSeconds;
 }
+
+export function withTimeout<T extends unknown[], R>(
+    fn: (...args: T) => Promise<R>,
+    ms: number,
+    ...args: T
+): Promise<R> {
+    return new Promise<R>((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+            reject(new DOMException(`Function timed out after ${ms}ms`, "TimeoutError"));
+        }, ms);
+
+        fn(...args)
+            .then(result => {
+                clearTimeout(timeoutId);
+                resolve(result);
+            })
+            .catch(err => {
+                clearTimeout(timeoutId);
+                reject(err);
+            });
+    });
+}

@@ -1,7 +1,6 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { useOBRBase, useOBRSelf } from "./hooks";
 
-import { AddTrackView } from "./views/AddTrackView";
 import { AudioPlayerProvider } from "./providers/AudioPlayerProvider";
 import { AuthProvider } from "./providers/AuthProvider";
 import { ControlledPlayerProvider } from "./providers/ControlledPlayerProvider";
@@ -69,21 +68,6 @@ function MainApp({ proxy = false }: { proxy?: boolean }) {
     }
 }
 
-function AddTrackModal() {
-    const { ready } = useOBRBase();
-    const player = useOBRSelf();
-
-    if (!ready || player == null) {
-        return;
-    }
-
-    return <AuthProvider proxy={false}>
-        <TrackProvider proxy={false}>
-            <AddTrackView />
-        </TrackProvider>
-    </AuthProvider>;
-}
-
 export default function Hoot() {
     return <PersistQueryClientProvider
             client={queryClient}
@@ -92,7 +76,6 @@ export default function Hoot() {
             <BrowserRouter>
             <Routes>
                 <Route path="/" element={<OBRRoute><MainApp /></OBRRoute>} />
-                <Route path="/add-track" element={<OBRRoute><AddTrackModal /></OBRRoute>} />
                 <Route path="/manage-tracks" element={<OBRRoute><ManageTracksModal /></OBRRoute>} />
                 <Route path="/import-local-tracks" element={<OBRRoute><ImportLocalTracksModal /></OBRRoute>} />
                 <Route path="/signup" element={<SignUpView />} />
