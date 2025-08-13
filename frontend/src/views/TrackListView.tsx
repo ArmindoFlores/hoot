@@ -110,9 +110,9 @@ function PlaylistItem({ playlist, playingPlaylists, playing, tracks, playTrack, 
     </Box>;
 }
 
-function updateSortingOrder(sortingOrder: string[], existing: string[]) {
-    const toKeep = sortingOrder.filter(playlist => existing.includes(playlist));
-    const toAdd = existing.filter(playlist => !sortingOrder.includes(playlist));
+function updateSortingOrder(sortingOrder: string[]|null, existing: string[]) {
+    const toKeep = sortingOrder ? sortingOrder.filter(playlist => existing.includes(playlist)) : [];
+    const toAdd = existing.filter(playlist => sortingOrder ? !sortingOrder.includes(playlist) : true);
     return [...toKeep, ...toAdd];
 }
 
@@ -170,7 +170,7 @@ export function TrackListView() {
     function handleDragEnd(event: DragEndEvent) {
         const { active, over } = event;
 
-        if (over != null && active.id !== over.id && playlistSortOrder != null) {
+        if (over != null && active.id !== over.id) {
             const items = updateSortingOrder(playlistSortOrder, playlists);
             const oldIndex = items.indexOf(active.id as string);
             const newIndex = items.indexOf(over.id as string);
@@ -187,9 +187,8 @@ export function TrackListView() {
             setPlaylistSortOrder(metadata[SORTED_PLAYLISTS_METADATA_KEY] as string[]);
         });
     }, []);
-
+    
     useEffect(() => {
-        if (playlistSortOrder == null) return;
         const result = updateSortingOrder(playlistSortOrder, playlists);
         return setSortedPlaylists(result);
     }, [playlists, playlistSortOrder]);

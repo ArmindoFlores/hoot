@@ -16,9 +16,9 @@ import { useTracks } from "../providers/TrackProvider";
 
 const SORTED_PLAYLISTS_METADATA_KEY = `${APP_KEY}/sortedPlayingPlaylists`;
 
-function updateSortingOrder(sortingOrder: string[], existing: string[]) {
-    const toKeep = sortingOrder.filter(playlist => existing.includes(playlist));
-    const toAdd = existing.filter(playlist => !sortingOrder.includes(playlist));
+function updateSortingOrder(sortingOrder: string[]|null, existing: string[]) {
+    const toKeep = sortingOrder ? sortingOrder.filter(playlist => existing.includes(playlist)) : [];
+    const toAdd = existing.filter(playlist => sortingOrder ? !sortingOrder.includes(playlist) : true);
     return [...toKeep, ...toAdd];
 }
 
@@ -64,7 +64,7 @@ export function AudioPlayerView() {
     function handleDragEnd(event: DragEndEvent) {
         const { active, over } = event;
 
-        if (over != null && active.id !== over.id && playlistSortOrder != null) {
+        if (over != null && active.id !== over.id) {
             const items = updateSortingOrder(playlistSortOrder, playingPlaylists);
             const oldIndex = items.indexOf(active.id as string);
             const newIndex = items.indexOf(over.id as string);
@@ -128,7 +128,6 @@ export function AudioPlayerView() {
     }, []);
 
     useEffect(() => {
-        if (playlistSortOrder == null) return;
         const result = updateSortingOrder(playlistSortOrder, playingPlaylists);
         return setSortedPlaylists(result);
     }, [playingPlaylists, playlistSortOrder]);
