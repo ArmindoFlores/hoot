@@ -205,15 +205,16 @@ def remove_tracks():
                 playlist_id=playlist.id
             ))
 
-    print([(r.track_id, r.playlist_id) for r in records])
-
-    stmt = delete(models.PlaylistTrack).where(or_(*[
-        and_(models.PlaylistTrack.track_id == pt.track_id, models.PlaylistTrack.playlist_id == pt.playlist_id)
-        for pt in records
-    ]))
+    stmt = delete(models.PlaylistTrack).where(
+        or_(*[
+            and_(
+                models.PlaylistTrack.track_id == pt.track_id, 
+                models.PlaylistTrack.playlist_id == pt.playlist_id
+            ) for pt in records
+        ])
+    )
 
     try:
-        print(str(stmt.compile()))
         models.db.session.execute(stmt)
         models.db.session.commit()
         return {"result": "Success"}
@@ -262,8 +263,7 @@ def edit_tracks():
         {"track_id": pt.track_id, "playlist_id": pt.playlist_id}
         for pt in records
     ])
-    subquery = select(models.Track.id).where(models.Track.owner_id == user.id)
-    rem_stmt = delete(models.PlaylistTrack).where(models.PlaylistTrack.track_id.in_(subquery))
+    rem_stmt = delete(models.PlaylistTrack).where(models.PlaylistTrack.track_id.in_(track_ids))
 
     try:
         models.db.session.execute(rem_stmt)
