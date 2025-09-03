@@ -205,14 +205,10 @@ def remove_tracks():
                 playlist_id=playlist.id
             ))
 
-    stmt = delete(models.PlaylistTrack).where(
-        or_(*[
-            and_(
-                models.PlaylistTrack.track_id == pt.track_id, 
-                models.PlaylistTrack.playlist_id == pt.playlist_id
-            ) for pt in records
-        ])
-    )
+    stmt = delete(models.PlaylistTrack).where(or_(*[
+        and_(models.PlaylistTrack.track_id == pt.track_id, models.PlaylistTrack.playlist_id == pt.playlist_id)
+        for pt in records
+    ]))
 
     try:
         models.db.session.execute(stmt)
@@ -250,6 +246,8 @@ def edit_tracks():
 
     if len(tracks_to_edit) != len(track_ids):
         return {"error": "Invalid tracks"}
+    
+    print(track_ids, playlists_to_set)
 
     records = []
     for track_id in track_ids:
@@ -258,6 +256,8 @@ def edit_tracks():
                 track_id=track_id,
                 playlist_id=playlist.id
             ))
+
+    print(records)
 
     add_stmt = insert(models.PlaylistTrack).values([
         {"track_id": pt.track_id, "playlist_id": pt.playlist_id}

@@ -678,18 +678,18 @@ function BulkAddTracksDialog({
 }
 
 function EditPlaylistsDialog({
-    closeDialog, openedDialog, playlistsQueryData, editPlaylistsMenuAction, setEditPlaylistsMenuAction, handleEditPlaylists
+    closeDialog, openedDialog, playlistsQueryData, editPlaylistsMenuAction, setEditPlaylistsMenuAction, handleEditPlaylists, playlistsToAdd, setPlaylistsToAdd
 }: {
     closeDialog: () => void,
     handleAddTrack: React.FormEventHandler,
     openedDialog: DialogType | null,
     playlistsQueryData: string[] | undefined,
+    playlistsToAdd: string[],
+    setPlaylistsToAdd: React.Dispatch<React.SetStateAction<string[]>>,
     editPlaylistsMenuAction: string,
     setEditPlaylistsMenuAction: React.Dispatch<React.SetStateAction<string>>,
     handleEditPlaylists: React.FormEventHandler
 }) {
-    const [playlistsToAdd, setPlaylistsToAdd] = useState<string[]>([]);
-
     return <Dialog
         open={openedDialog == "edit-playlists"}
         onClose={closeDialog}
@@ -1140,6 +1140,7 @@ export function ManageTracksModal() {
 
     const handleEditPlaylists = useCallback((e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
+        console.log("Playlists to add", playlistsToAdd);
         const func = editPlaylistsMenuAction === "add" ?
             apiService.addPlaylistsToTracks : (editPlaylistsMenuAction === "remove" ? 
             apiService.removePlaylistsFromTracks : 
@@ -1586,6 +1587,8 @@ export function ManageTracksModal() {
             closeDialog={closeDialog}
             handleAddTrack={handleAddTrack}
             playlistsQueryData={playlistsQuery.data}
+            playlistsToAdd={playlistsToAdd}
+            setPlaylistsToAdd={setPlaylistsToAdd}
             editPlaylistsMenuAction={editPlaylistsMenuAction}
             setEditPlaylistsMenuAction={setEditPlaylistsMenuAction}
             handleEditPlaylists={handleEditPlaylists}

@@ -10,3 +10,6 @@ class PlaylistTrack(db.Model):
     id = db.Column(db.Integer, primary_key=True, nullable=False, autoincrement=True)
     track_id = db.Column(db.Integer, db.ForeignKey("tracks.id"), nullable=False)
     playlist_id = db.Column(db.Integer, db.ForeignKey("playlists.id"), nullable=False)    
+
+    def __repr__(self):
+        return f"<PlaylistTrack id={self.id} track_id={self.track_id} playlist_id={self.playlist_id}>"
