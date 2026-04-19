@@ -1,4 +1,4 @@
-import { ArrowRight, DragIndicator, VolumeUp } from "@mui/icons-material";
+import { ArrowDropDown, ArrowRight, DragIndicator, VolumeUp } from "@mui/icons-material";
 import { AudioObject, useAudio } from "../providers/AudioPlayerProvider";
 import { Box, Button, Card, Collapse, IconButton, Input, Typography } from "@mui/material";
 import { DndContext, DragEndEvent, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
@@ -60,7 +60,9 @@ function PlaylistItem({ playlist, playingPlaylists, playing, tracks, playTrack, 
         <Card key={playlist} variant="elevation" sx={{ p: 1, mb: 1 }}>
             <Box sx={{ display: "flex", flexDirection: "row", gap: 1, cursor: "pointer", alignItems: "center", justifyContent: "space-between" }}>
                 <Box onClick={() => setExpanded(old => !old) } sx={{ display: "flex", flexDirection: "row", flex: 1, gap: 1, cursor: "pointer", alignItems: "center", justifyContent: "start" }}>
-                    <ArrowRight />
+                    {
+                        expanded ? <ArrowDropDown /> : <ArrowRight />
+                    }
                     <Typography fontWeight="bold">{playlist}</Typography>
                     {
                         playingPlaylists.includes(playlist) &&
@@ -235,4 +237,3 @@ export function TrackListView() {
             </SortableContext>
     </DndContext>;
 }
-
