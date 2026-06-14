@@ -55,3 +55,11 @@ export function withTimeout<T extends unknown[], R>(
             });
     });
 }
+
+export function capitalize(s: string): string {
+    return s.charAt(0).toLocaleUpperCase() + s.substring(1);
+}
+
+export function title(s: string): string {
+    return s.split(" ").map(word => capitalize(word)).join(" ");
+}

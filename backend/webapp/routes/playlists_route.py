@@ -5,7 +5,7 @@ __all__ = [
 import typing
 
 import flask
-from sqlalchemy import delete, select, and_, or_
+from sqlalchemy import delete, and_, or_
 from sqlalchemy.orm import joinedload
 from sqlalchemy.dialects.postgresql import insert
 
@@ -24,13 +24,16 @@ def get_playlists():
         return {"error": "Invalid request"}
     
     user: models.User = middleware.auth.user
-    
+    include_ids = flask.request.args.get("include_ids", False) == "true"
+
     playlists: typing.List[models.Playlist] = models.Playlist.query.options(
         joinedload(models.Playlist.tracks)
     ).filter_by(
         owner_id=user.id
     ).all()
 
+    if include_ids:
+        return [{"id": playlist.id, "name": playlist.name} for playlist in playlists]
     return [playlist.name for playlist in playlists]
 
 @playlists.route("", methods=["POST"])
@@ -46,7 +49,7 @@ def create_playlist():
     if name is None or not is_valid_playlist_name(name):
         return {"error": "Invalid playlist name"}
     
-    if models.Playlist.query.filter_by(owner_id=user.id, name=name).exists():
+    if models.Playlist.query.filter_by(owner_id=user.id, name=name).first() is not None:
         return {"error": "A playlist already exists with that name"}
 
     try:
@@ -62,47 +65,46 @@ def create_playlist():
 @playlists.route("", methods=["DELETE"])
 @jsonify
 @middleware.auth.requires_login
-def delete_playlist():
+def delete_playlists():
     if not flask.request.is_json:
         return {"error": "Invalid request"}
     
     user: models.User = middleware.auth.user
-    name = flask.request.json.get("name", None)
-
-    if name is None:
-        return {"error": "Invalid playlist name"}
+    ids = flask.request.json.get("ids", [])
     
-    playlist = models.Playlist.query.filter_by(owner_id=user.id, name=name).first()
-
-    if playlist is None:
-        return {"error": "Playlist doesn't exist"}
+    playlists = models.Playlist.query.filter(
+        models.Playlist.owner_id==user.id, models.Playlist.id.in_(ids)
+    ).all()
 
     try:
-        models.db.session.delete(playlist)
+        for playlist in playlists:
+            models.db.session.delete(playlist)
         models.db.session.commit()
     except Exception as e:
-        return {"error": f"Could not delete playlist ({str(e)})"}
+        return {"error": f"Could not delete playlists ({str(e)})"}
     return {"result": "Success"}
 
-@playlists.route("tracks", methods=["GET"])
+@playlists.route("/<playlist_id>/tracks", methods=["GET"])
 @jsonify
 @middleware.auth.requires_login
-def get_playlist_tracks():
+def get_playlist_tracks(playlist_id: str):
     if not flask.request.is_json:
         return {"error": "Invalid request"}
     
     user: models.User = middleware.auth.user
-    name = flask.request.json.get("name", None)
 
-    if name is None:
-        return {"error": "Invalid playlist name"}
-    
-    playlist: models.Playlist = models.Playlist.query.options(
-        joinedload(models.Track)
-    ).filter_by(
-        models.Playlist.owner_id == user.id,
-        models.Playlist.name == name
-    ).first()
+    if playlist_id != "all":
+        playlist: models.Playlist = models.Playlist.query.options(
+            joinedload(models.Playlist.tracks)
+        ).filter(
+            models.Playlist.owner_id == user.id,
+            models.Playlist.id == int(playlist_id)
+        ).first()
+        tracks = playlist.tracks
+    else:
+        tracks = models.Track.query.filter(
+            ~models.Track.playlists.any()
+        ).all()
 
     return [
         {
@@ -111,7 +113,7 @@ def get_playlist_tracks():
             **(dict(zip(("source", "source_expiration"), source_if_valid(track)))),
             "size": track.size,
             "type": "TRACK"
-        } for track in playlist.tracks
+        } for track in tracks
     ]
 
 @playlists.route("add_tracks", methods=["POST"])
@@ -246,8 +248,7 @@ def edit_tracks():
 
     if len(tracks_to_edit) != len(track_ids):
         return {"error": "Invalid tracks"}
-    
-    print(track_ids, playlists_to_set)
+   
 
     records = []
     for track_id in track_ids:
@@ -256,8 +257,6 @@ def edit_tracks():
                 track_id=track_id,
                 playlist_id=playlist.id
             ))
-
-    print(records)
 
     add_stmt = insert(models.PlaylistTrack).values([
         {"track_id": pt.track_id, "playlist_id": pt.playlist_id}

@@ -135,6 +135,14 @@ function getPlaylists(): ApiResponse<string[]> {
     return request("/playlists", "GET");
 }
 
+function getPlaylistsWithIDs(): ApiResponse<{id: number, name: string}[]> {
+    return request("/playlists?include_ids=true", "GET");
+}
+
+function getPlaylistTracks(playlist?: number): ApiResponse<Track[]> {
+    return request(`/playlists/${playlist ?? "all"}/tracks`, "GET");
+}
+
 function getTrack(trackId: number): ApiResponse<Track> {
     return request(`/tracks/${trackId}`, "GET");
 }
@@ -173,6 +181,14 @@ function createDirectory(name: string, parent: number|null): ApiResponse<never> 
     );
 }
 
+function createPlaylist(name: string): ApiResponse<never> {
+    return request(
+        `/playlists`,
+        "POST",
+        JSON.stringify({name})
+    );
+}
+
 function moveItems(items: { id: number, type: DirectoryItem["type"] }[], parent: number|null): ApiResponse<never> {
     return request(
         `/storage/move`,
@@ -197,6 +213,16 @@ function renameDirectory(id: number, name: string): ApiResponse<never> {
 function deleteDirectories(ids: number[]): ApiResponse<never> {
     return request(
         `/storage`,
+        "DELETE",
+        JSON.stringify({
+            ids
+        })
+    );
+}
+
+function deletePlaylists(ids: number[]): ApiResponse<never> {
+    return request(
+        `/playlists`,
         "DELETE",
         JSON.stringify({
             ids
@@ -270,11 +296,15 @@ export const apiService = {
     setPlaylistsForTracks,
     getDirectoryContents,
     createDirectory,
+    createPlaylist,
     moveItems,
     renameDirectory,
     deleteDirectories,
+    deletePlaylists,
     getDirectoryInfo,
     getPlaylists,
+    getPlaylistsWithIDs,
+    getPlaylistTracks,
     login,
     logout,
     signup,

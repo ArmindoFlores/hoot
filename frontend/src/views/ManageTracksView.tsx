@@ -1,6 +1,6 @@
 import { AudioFile, CreateNewFolder, Delete, DragIndicator, DriveFileMove, Edit, FilterAlt, Folder, MoreVert, PlaylistAdd, Search, UploadFile } from "@mui/icons-material";
 import { Autocomplete, Box, Breadcrumbs, Button, Card, Checkbox, CircularProgress, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, FormControl, IconButton, InputBase, InputLabel, LinearProgress, ListItemIcon, ListItemText, Menu, MenuItem, MenuList, Select, SxProps, Table, TableBody, TableCell, TableHead, TablePagination, TableRow, TextField, Typography } from "@mui/material";
-import { DirectoryItem, InfiniteQuery, SearchedItem } from "../types/storage";
+import { DirectoryContents, DirectoryItem, DirectoryType, InfiniteQuery, SearchedItem } from "../types/storage";
 import { DndContext, DragEndEvent, DragOverEvent, DragOverlay, DragStartEvent, pointerWithin, useDraggable, useDroppable } from "@dnd-kit/core";
 import { InfiniteData, UseInfiniteQueryResult, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { apiService, createQueryFn, isError } from "../services/apiService";
@@ -11,6 +11,7 @@ import { BaseTheme } from "@mui/material/styles/createThemeNoVars";
 import { Modal } from "@owlbear-rodeo/sdk/lib/types/Modal";
 import OBR from "@owlbear-rodeo/sdk";
 import { Track } from "../types/tracks";
+import { capitalize } from "lodash";
 import { useContextMenu } from "../hooks";
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -42,10 +43,16 @@ function isSameItem(item1: SelectedItemType, item2: SelectedItemType) {
     return item1.id === item2.id && item1.type === item2.type;
 }
 
-function directoryItemToString(item: SelectedItemType, capitalize: boolean = false) {
-    let str = item.type.toLocaleLowerCase();
-    if (capitalize) {
-        str = str.charAt(0).toLocaleUpperCase() + str.slice(1);
+function directoryItemToString(item: SelectedItemType, capitalize_: boolean = false, playlistMode: boolean = false) {
+    let str = "item";
+    if (item.type === "DIRECTORY" && playlistMode) {
+        str = "playlist";
+    }
+    else {
+        str = item.type.toLocaleLowerCase();
+    }
+    if (capitalize_) {
+        str = capitalize(str);
     }
     return str;
 }
@@ -199,13 +206,15 @@ function DirectoryItemElement(
         onContextMenu,
         onClick,
         onDoubleClick,
+        playlistMode,
     }: {
         item: DirectoryItem,
         selected: boolean,
         selectedItems: SelectedItemType[],
         onContextMenu: React.MouseEventHandler<HTMLDivElement>,
         onClick: React.MouseEventHandler<HTMLDivElement>,
-        onDoubleClick: React.MouseEventHandler<HTMLDivElement>
+        onDoubleClick: React.MouseEventHandler<HTMLDivElement>,
+        playlistMode: boolean,
     }
 ) {
     const { attributes, listeners, setNodeRef: setDraggableNodeRef, active } = useDraggable({
@@ -240,16 +249,18 @@ function DirectoryItemElement(
         <Folder sx={{ width: 100, height: 100 }} />
         <Typography variant="body2" textAlign="center">{item.name}</Typography>
 
-        <DragIndicator
-            {...listeners}
-            sx={{
-                transition: "opacity 0.2s ease",
-                position: "absolute",
-                top: 6,
-                right: 4,
-                opacity: hovered ? 1 : 0,
-            }} 
-        />
+        {!playlistMode &&
+            <DragIndicator
+                {...listeners}
+                sx={{
+                    transition: "opacity 0.2s ease",
+                    position: "absolute",
+                    top: 6,
+                    right: 4,
+                    opacity: hovered ? 1 : 0,
+                }} 
+            />
+        }
     </Card>;
 }
 
@@ -431,21 +442,22 @@ function RenameDirectoryDialog({
 }
 
 function DeleteItemsDialog({
-    closeDialog, itemsToDelete, handleDeleteItems, openedDialog,
+    closeDialog, itemsToDelete, handleDeleteItems, openedDialog, playlistMode
 }: {
     closeDialog: () => void,
     itemsToDelete: SelectedItemType[],
     handleDeleteItems: (items: SelectedItemType[]) => void,
     openedDialog: DialogType | null,
+    playlistMode: boolean,
 }) {
     return <Dialog
         open={openedDialog == "delete-item"}
         onClose={closeDialog}
     >
-        <DialogTitle>Delete {itemsToDelete.length == 1 ? directoryItemToString(itemsToDelete[0], true) : "Items"}</DialogTitle>
+        <DialogTitle>Delete {itemsToDelete.length == 1 ? directoryItemToString(itemsToDelete[0], true, playlistMode) : "Items"}</DialogTitle>
         <DialogContent>
             <DialogContentText>
-                Are you sure you want to delete {itemsToDelete.length == 1 ? "this" : "these"} {itemsToDelete.length == 1 ? directoryItemToString(itemsToDelete[0]) : "items"}?
+                Are you sure you want to delete {itemsToDelete.length == 1 ? "this" : "these"} {itemsToDelete.length == 1 ? directoryItemToString(itemsToDelete[0], false, playlistMode) : "items"}?
                 This action cannot be undone.
             </DialogContentText>
             <DialogActions>
@@ -571,21 +583,24 @@ function AddTrackFromDragDialog({
     </Dialog>;
 }
 
-function AddDirectory({
-    closeDialog, handleCreateDirectory, openedDialog
+function AddDirectoryOrPlaylist({
+    closeDialog, handleCreateDirectory, openedDialog, playlistMode
 }: {
     closeDialog: () => void,
     handleCreateDirectory: React.FormEventHandler,
     openedDialog: DialogType | null,
+    playlistMode: boolean
 }) {
+    const directoryOrPlaylist = playlistMode ? "playlist" : "directory";
+
     return <Dialog
         open={openedDialog == "add-directory"}
         onClose={closeDialog}
     >
-        <DialogTitle>Create Directory</DialogTitle>
+        <DialogTitle>Create {capitalize(directoryOrPlaylist)}</DialogTitle>
         <DialogContent>
             <DialogContentText>
-                To create a directory, give it a name and click "Create".
+                To create a {directoryOrPlaylist}, give it a name and click "Create".
             </DialogContentText>
             <form onSubmit={handleCreateDirectory}>
                 <TextField
@@ -593,7 +608,7 @@ function AddDirectory({
                     required
                     name="name"
                     margin="dense"
-                    label="Directory Name"
+                    label={`${capitalize(directoryOrPlaylist)} Name`}
                     variant="standard"
                     fullWidth />
                 <DialogActions>
@@ -950,7 +965,7 @@ function GlobalSelectionContextMenu({
 }
 
 function ItemContextMenu({
-    openDialog, contextMenuHandler, setDetailedItem, setItemsToDelete, contextMenuItem
+    openDialog, contextMenuHandler, setDetailedItem, setItemsToDelete, contextMenuItem, handleDeleteItems, playlistMode, root
 }: {
     openDialog: (dialog: DialogType) => void,
     menuOptionsButtonRef: React.MutableRefObject<HTMLButtonElement | null>,
@@ -958,6 +973,9 @@ function ItemContextMenu({
     setItemsToDelete: React.Dispatch<React.SetStateAction<SelectedItemType[]>>,
     contextMenuItem: DirectoryItem | null,
     contextMenuHandler: ReturnType<typeof useContextMenu>,
+    handleDeleteItems: (items: SelectedItemType[]) => void,
+    playlistMode: boolean,
+    root: boolean,
 }) { 
     return <Menu
         open={contextMenuHandler.opened}
@@ -978,20 +996,21 @@ function ItemContextMenu({
                     {contextMenuItem?.type === "DIRECTORY" ? "Rename" : "Edit"}
                 </ListItemText>
             </MenuItem>
-            <MenuItem onClick={() => { contextMenuHandler.close(); } }>
-                <ListItemIcon>
-                    <DriveFileMove />
-                </ListItemIcon>
-                <ListItemText>
-                    Move To
-                </ListItemText>
-            </MenuItem>
-            <MenuItem onClick={() => { setItemsToDelete([contextMenuItem!]); openDialog("delete-item"); contextMenuHandler.close(); } }>
+            <MenuItem onClick={() => {
+                if (!playlistMode || root) {
+                    setItemsToDelete([contextMenuItem!]);
+                    openDialog("delete-item");
+                }
+                else {
+                    handleDeleteItems([contextMenuItem!]);
+                }
+                contextMenuHandler.close();
+            }}>
                 <ListItemIcon>
                     <Delete />
                 </ListItemIcon>
                 <ListItemText>
-                    Delete
+                    {playlistMode && !root ? "Remove from playlist" : "Delete"}
                 </ListItemText>
             </MenuItem>
         </MenuList>
@@ -1017,28 +1036,48 @@ export function ManageTracksModal() {
     const [fileToUpload, setFileToUpload] = useState<File|null>(null);
     const [fileUploadProgress, setFileUploadProgress] = useState(0);
     const [editPlaylistsMenuAction, setEditPlaylistsMenuAction] = useState("");
+    const [viewType, setViewType] = useState("tracks");
 
     const menuOptionsButtonRef = useRef<HTMLButtonElement|null>(null);
     const contextMenuHandler = useContextMenu();
     const globalContextMenuHandler = useContextMenu();
 
+    const playlistsQuery = useQuery({
+        queryKey: ["playlists"],
+        queryFn: createQueryFn(apiService.getPlaylistsWithIDs)
+    });
+
+    const playlists = useMemo(() => playlistsQuery.data ? playlistsQuery.data.map(p => p.name) : undefined, [playlistsQuery.data]);
+
     const directoryContentsQuery = useQuery({
         queryKey: ["directory-contents", currentDirectory],
-        queryFn: createQueryFn(() => apiService.getDirectoryContents(currentDirectory))
+        queryFn: createQueryFn(() => apiService.getDirectoryContents(currentDirectory)),
+        enabled: viewType === "tracks"
     });
+
+    const playlistContentsQuery = useQuery({
+        queryKey: ["playlist-contents", currentDirectory],
+        queryFn: createQueryFn(() => apiService.getPlaylistTracks(currentDirectory ?? undefined)),
+        enabled: viewType === "playlists"
+    });
+
+    const playlistContentsAsDirectoryContents: DirectoryContents = useMemo(() => {
+        const playlists = currentDirectory === null ? playlistsQuery.data : [];
+        return [
+            ...(playlistContentsQuery.data ?? []).map(track => ({ type: "TRACK", ...track } as DirectoryItem)),
+            ...(playlists ?? []).map(playlist => ({ type: "DIRECTORY", ...playlist } as DirectoryType))
+        ];
+    }, [playlistContentsQuery.data, playlistsQuery.data, currentDirectory]);
+
     const filteredContents = useMemo(() => {
-        if (directoryContentsQuery.data == undefined) return undefined;
-        return directoryContentsQuery.data.filter(item => item.name.toLocaleLowerCase().includes(simpleSearchString.toLocaleLowerCase())).sort(sortDirectoryContents);
-    }, [directoryContentsQuery.data, simpleSearchString]);
+        const contents = viewType === "tracks" ? directoryContentsQuery.data : playlistContentsAsDirectoryContents;
+        if (contents == undefined) return undefined;
+        return contents.filter(item => item.name.toLocaleLowerCase().includes(simpleSearchString.toLocaleLowerCase())).sort(sortDirectoryContents);
+    }, [directoryContentsQuery.data, playlistContentsAsDirectoryContents, simpleSearchString, viewType]);
 
     const detailedTrack = useQuery({
         queryKey: ["detailed-track", detailedItem?.id, detailedItem?.type],
         queryFn: createQueryFn(() => detailedItem && detailedItem.type === "TRACK" ? apiService.getTrack(detailedItem.id) : Promise.resolve({ error: "" })),
-    });
-
-    const playlistsQuery = useQuery({
-        queryKey: ["playlists"],
-        queryFn: createQueryFn(apiService.getPlaylists)
     });
 
     const openDialog = useCallback((modal: DialogType) => {
@@ -1047,18 +1086,27 @@ export function ManageTracksModal() {
 
     const closeDialog = useCallback(() => setOpenedDialog(null), []);
 
-    const handleCreateDirectory = useCallback((e: React.FormEvent<HTMLFormElement>) => {
+    const handleCreateDirectoryOrPlaylist = useCallback((e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
         const formJson = Object.fromEntries(formData.entries());
         const name = formJson.name as string;
-        createQueryFn(() => apiService.createDirectory(name, currentDirectory))().then(() => {
-            directoryContentsQuery.refetch();
-        }).catch((error: Error) => {
-            OBR.notification.show(error.message, "ERROR");
-        });
+        if (viewType === "tracks") {
+            createQueryFn(() => apiService.createDirectory(name, currentDirectory))().then(() => {
+                directoryContentsQuery.refetch();
+            }).catch((error: Error) => {
+                OBR.notification.show(error.message, "ERROR");
+            });
+        }
+        else {
+            createQueryFn(() => apiService.createPlaylist(name))().then(() => {
+                playlistsQuery.refetch();
+            }).catch((error: Error) => {
+                OBR.notification.show(error.message, "ERROR");
+            });
+        }
         closeDialog();
-    }, [closeDialog, currentDirectory, directoryContentsQuery]);
+    }, [closeDialog, currentDirectory, directoryContentsQuery, playlistsQuery, viewType]);
 
     const handleAddTrack = useCallback((e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -1091,10 +1139,17 @@ export function ManageTracksModal() {
 
         const promises: Promise<never>[] = [];
         if (tracksToDelete.length > 0) {
-            promises.push(createQueryFn(() => apiService.deleteTracks(tracksToDelete.map(item => item.id)))());
+            if (directoryStack.length === 0 || viewType === "tracks") {
+                promises.push(createQueryFn(() => apiService.deleteTracks(tracksToDelete.map(item => item.id)))());
+            }
+            else {
+                const currentPlaylist = directoryStack[directoryStack.length - 1].name;
+                promises.push(createQueryFn(() => apiService.removePlaylistsFromTracks(tracksToDelete.map(item => item.id), [currentPlaylist]))());
+            }
         }
         if (directoriesToDelete.length > 0) {
-            promises.push(createQueryFn(() => apiService.deleteDirectories(directoriesToDelete.map(item => item.id)))());
+            const deleteFunc = viewType === "tracks" ? apiService.deleteDirectories : apiService.deletePlaylists;
+            promises.push(createQueryFn(() => deleteFunc(directoriesToDelete.map(item => item.id)))());
         }
 
         Promise.allSettled(promises).then(results => {
@@ -1103,10 +1158,16 @@ export function ManageTracksModal() {
                     OBR.notification.show(result.reason.message, "ERROR");
                 }
             }
-            directoryContentsQuery.refetch();
+            if (viewType === "tracks") {
+                directoryContentsQuery.refetch();
+            }
+            else {
+                playlistsQuery.refetch();
+                playlistContentsQuery.refetch();
+            }
         });
 
-    }, [directoryContentsQuery, closeDialog]);
+    }, [directoryContentsQuery, playlistsQuery, playlistContentsQuery, closeDialog, viewType, directoryStack]);
 
     const handleSaveTrack = useCallback((e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -1253,7 +1314,8 @@ export function ManageTracksModal() {
             if (activeObj == null) {
                 return null;
             }
-            return (directoryContentsQuery.data ?? []).find(item => item.id == activeObj.id && item.type == activeObj.type) ?? null;
+            const contentQuery = viewType === "tracks" ? directoryContentsQuery.data : playlistContentsAsDirectoryContents;
+            return (contentQuery ?? []).find(item => item.id == activeObj.id && item.type == activeObj.type) ?? null;
         }
         );
         setDragCount(active.data.current?.itemsToDrag?.length ?? 0);
@@ -1293,11 +1355,22 @@ export function ManageTracksModal() {
             }
         }
 
-        createQueryFn(() => apiService.moveItems(itemsToDrag, overObj.id as number))().then(() => {
-            directoryContentsQuery.refetch();
-        }).catch((error: Error) => {
-            OBR.notification.show(error.message, "ERROR");
-        });
+        if (viewType === "tracks") {
+            createQueryFn(() => apiService.moveItems(itemsToDrag, overObj.id as number))().then(() => {
+                directoryContentsQuery.refetch();
+            }).catch((error: Error) => {
+                OBR.notification.show(error.message, "ERROR");
+            });
+        }
+        else {
+            const overPlaylist = playlistsQuery?.data?.find?.(p => p.id === overObj.id);
+            if (!overPlaylist) return;
+            createQueryFn(() => apiService.addPlaylistsToTracks(itemsToDrag.map(item => item.id), [overPlaylist.name]))().then(() => {
+                playlistContentsQuery.refetch();
+            }).catch((error: Error) => {
+                OBR.notification.show(error.message, "ERROR");
+            });
+        }
     };
 
     const bulkAddTracks = async (files: File[]) => {
@@ -1384,9 +1457,14 @@ export function ManageTracksModal() {
                 }}
             >
                 <Box sx={{ display: "flex", flexDirection: "row", gap: 5, justifyContent: "space-between", alignItems: "baseline" }}>
-                    <Typography variant="h6">
-                        <Box component="span" fontWeight="bold">Tracks</Box>
-                    </Typography>
+                    <Select
+                        value={viewType}
+                        onChange={event => {setViewType(event.target.value); setCurrentDirectory(null); setDirectoryStack([])}}
+                        variant="standard"
+                        size="medium"                    >
+                        <MenuItem value="tracks">Tracks</MenuItem>
+                        <MenuItem value="playlists">Playlists</MenuItem>
+                    </Select>
                     <Breadcrumbs>
                         <BreadcrumbsItem
                             id="bc-null"
@@ -1451,7 +1529,7 @@ export function ManageTracksModal() {
                             <FilterAlt />
                         </IconButton>
                     </Box>
-                    <IconButton title="Create a new folder" onClick={() => openDialog("add-directory")}>
+                    <IconButton title={viewType === "tracks" ? "Create a new folder" : "Create a new playlist"} onClick={() => openDialog("add-directory")}>
                         <CreateNewFolder />
                     </IconButton>
                     <Button variant="contained" sx={{ borderRadius: 4 }} title="Upload a new track" onClick={() => openDialog("add-track")}>
@@ -1485,6 +1563,7 @@ export function ManageTracksModal() {
                                 onContextMenu={event => { setContextMenuItem(item); contextMenuHandler.open(event); }}
                                 onClick={e => handleClickItem(e, item)}
                                 onDoubleClick={() => navigationPush(item)}
+                                playlistMode={viewType === "playlists"}
                             />
                         ))}
                         {filteredContents.filter(item => item.type === "TRACK").map(item => (
@@ -1561,6 +1640,9 @@ export function ManageTracksModal() {
             setItemsToDelete={setItemsToDelete}
             contextMenuHandler={contextMenuHandler}
             contextMenuItem={contextMenuItem}
+            playlistMode={viewType === "playlists"}
+            handleDeleteItems={handleDeleteItems}
+            root={currentDirectory === null}
         />
         <GlobalSelectionContextMenu 
             openDialog={openDialog}
@@ -1576,7 +1658,7 @@ export function ManageTracksModal() {
             openedDialog={openedDialog}
             closeDialog={closeDialog}
             handleAddTrack={handleAddTrack}
-            playlistsQueryData={playlistsQuery.data}
+            playlistsQueryData={playlists}
             setFilterPlaylists={setFilterPlaylists}
             filterPlaylists={filterPlaylists}
             playlistsToFilter={playlistsToFilter}
@@ -1586,7 +1668,7 @@ export function ManageTracksModal() {
             openedDialog={openedDialog}
             closeDialog={closeDialog}
             handleAddTrack={handleAddTrack}
-            playlistsQueryData={playlistsQuery.data}
+            playlistsQueryData={playlists}
             playlistsToAdd={playlistsToAdd}
             setPlaylistsToAdd={setPlaylistsToAdd}
             editPlaylistsMenuAction={editPlaylistsMenuAction}
@@ -1599,30 +1681,32 @@ export function ManageTracksModal() {
             fileUploadProgress={fileUploadProgress}
             handleAddTrack={handleAddTrack}
         />
-        <AddDirectory 
+        <AddDirectoryOrPlaylist 
             openedDialog={openedDialog}
             closeDialog={closeDialog}
-            handleCreateDirectory={handleCreateDirectory}
+            playlistMode={viewType === "playlists"}
+            handleCreateDirectory={handleCreateDirectoryOrPlaylist}
         />
         <AddTrackFromDragDialog
             openedDialog={openedDialog}
             closeDialog={closeDialog}
             filename={fileToUpload?.name}
             handleAddTrack={handleAddTrack}
-            playlistsQueryData={playlistsQuery.data}
+            playlistsQueryData={playlists}
         />
         <AddTrackDialog
             openedDialog={openedDialog}
             closeDialog={closeDialog}
             filename={fileToUpload?.name}
             handleAddTrack={handleAddTrack}
-            playlistsQueryData={playlistsQuery.data}
+            playlistsQueryData={playlists}
         />
         <DeleteItemsDialog 
             openedDialog={openedDialog}
             closeDialog={closeDialog}
             handleDeleteItems={handleDeleteItems}
             itemsToDelete={itemsToDelete}
+            playlistMode={viewType === "playlists"}
         />
         <RenameDirectoryDialog 
             openedDialog={openedDialog}
@@ -1637,7 +1721,7 @@ export function ManageTracksModal() {
             setDetailedItem={setDetailedItem}
             detailedItem={detailedItem}
             handleSaveTrack={handleSaveTrack}
-            playlistsQueryData={playlistsQuery.data}
+            playlistsQueryData={playlists}
         />
         <SearchResultsDialog
             openedDialog={openedDialog}
