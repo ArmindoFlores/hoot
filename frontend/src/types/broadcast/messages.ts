@@ -81,6 +81,8 @@ export interface HootAudioInfoMessage extends MessageBase {
 
 export interface HootPlaylistAudioInfoMessage extends MessageBase {
     type: "HOOT_AUDIO_INFO";
+    source: string;
+    trackId: number;
     title: string;
     duration: number;
     position: number;

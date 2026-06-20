@@ -1,51 +1,29 @@
 import { APIHandler, ClientAPI } from "@armindoflores/obr-ext-core";
 import { HootFadeMessage, HootGetAudioInfoMessage, HootNextTrackMessage, HootPauseMessage, HootPlayAudioMessage, HootPlayMessage, HootPreviousTrackMessage, HootReloadTracksMessage, HootSeekMessage, HootSetGlobalVolumeMessage, HootSetRepeatModeMessage, HootSetShuffleMessage, HootSetVolumeMessage, HootUnloadMessage } from "../types/broadcast/messages";
+import { setupMediaSession, updateMediaSession } from "./mediaSession";
 
+import { AudioHandler } from "./audioHandler";
 import { HootAsyncUpdatesMessageRegistry } from "../types/broadcast/asyncUpdates";
 import { HootAudioControlsMessageRegistry } from "../types/broadcast/audioControls";
 import OBR from "@owlbear-rodeo/sdk";
-import { PlaylistController } from "./playlistController";
-import { Track } from "../types/tracks";
 import { TrackLibrary } from "./tracks";
 import { constants } from "../constants";
 import { logging } from "../logging";
 import { makeErrorMessage } from "@armindoflores/obr-ext-core/utils";
 
-let ctx: AudioContext;
-let gain: GainNode;
 const asyncUpdatesClient = new ClientAPI<HootAsyncUpdatesMessageRegistry>(
     constants.ASYNC_UPDATES_MESSAGE_CHANNEL_ID,
     constants.ASYNC_UPDATES_MESSAGE_CHANNEL_ID,
     "ALL"
 );
 const library = new TrackLibrary();
-const playing: Record<string, PlaylistController> = {};
-
-function initGlobalAudioContext() {
-    logging.info("Initializing audio context...");
-    ctx = new AudioContext();
-    gain = ctx.createGain();
-    gain.gain.setValueAtTime(1, 0);
-    gain.connect(ctx.destination);
-    logging.info("done initializing audio context!");
-    ctx.resume();
-}
-
-function setGlobalVolume(volume: number) {
-    const now = ctx.currentTime;
-    gain.gain.cancelScheduledValues(now);
-    gain.gain.setValueAtTime(volume, now);
-}
-
-function getGlobalVolume(): number {
-    return gain.gain.value;
-}
+const audioHandler = new AudioHandler();
 
 function reportPlaylistChange() {
     asyncUpdatesClient.send<"HOOT_PLAYING_INFO">(
         {
             type: "HOOT_PLAYING_INFO",
-            playing: Object.fromEntries(Object.entries(playing).map(([k, v]) => [
+            playing: Object.fromEntries(Object.entries(audioHandler.playing).map(([k, v]) => [
                 k,
                 {
                     title: v.currentTrack.name,
@@ -61,15 +39,18 @@ function reportPlaylistChange() {
     );
 }
 
-function reportTrackChange(playlist: string) {
-    const pc = playing[playlist];
+async function reportTrackChange(playlist: string) {
+    const pc = audioHandler.playing[playlist];
     if (pc === undefined || pc.currentTrack === undefined) {
         reportPlaylistChange();
         return;
     }
+    const trackId = pc.currentTrackId;
     asyncUpdatesClient.send<"HOOT_AUDIO_INFO">(
         {
             type: "HOOT_AUDIO_INFO",
+            trackId,
+            source: (await pc.getLoadedTrackFromID(trackId)).source,
             title: pc.currentTrack.name,
             duration: pc.currentTrackDuration,
             position: pc.currentTrackPosition,
@@ -84,48 +65,6 @@ function reportTrackChange(playlist: string) {
 
 function reportFadeStarted(message: HootFadeMessage) {
     asyncUpdatesClient.send<"HOOT_FADE">(message);
-}
-
-async function playTrack(track: Track | number, playlist: string | null, playOnLoad?: boolean): Promise<PlaylistController> {
-    const isCustomTrack = typeof track === "object";
-    const isStandalone = playlist === null;
-    const trackId = isCustomTrack ? track.id : track;
-    const alreadyPlaying = (playlist === null || playing[playlist] === undefined) ? false : playing[playlist].playing;
-    const pc = !isStandalone && playing[playlist] ? playing[playlist] : new PlaylistController(ctx, gain, library, playlist);
-    if (playlist !== null) {
-        playing[playlist] = pc;
-    }
-    if (isCustomTrack) {
-        pc.addCustomTrack(track);
-    }
-    if (!isStandalone) {
-        pc.addOnLoadHandler(() => reportTrackChange(playlist));
-    }
-    await pc.playTrack(trackId, isStandalone ? true : (alreadyPlaying ? true : playOnLoad ?? false));
-    return pc;
-}
-
-function defaultMetadata() {
-    return new MediaMetadata({
-        album: "Hoot",
-        artwork: [{ src: "/hoot.webp", sizes: "1024x1024", type: "image/webp" }]
-    });
-}
-
-function setupMediaSession() {
-    navigator.mediaSession.metadata = defaultMetadata();
-    navigator.mediaSession.playbackState = "paused";
-}
-
-function updateMediaSession() {
-    const mediaSession = navigator.mediaSession;
-    const metadata = navigator.mediaSession.metadata ?? defaultMetadata();
-    const playingPlaylists = Object.entries(playing).filter(kv => kv[1].playing);
-
-    metadata.title = playingPlaylists.map(kv => kv[1].currentTrack.name).join(" / ");
-    metadata.artist = playingPlaylists.map(kv => kv[0]).join(" / ");
-    mediaSession.playbackState = playingPlaylists.length > 0 ? "playing" : "paused";
-    mediaSession.metadata = metadata;
 }
 
 function setupModalListener() {
@@ -159,13 +98,13 @@ function setupAudioControlsAPIHandler() {
     handler.setHandler("HOOT_GET_GLOBAL_INFO", async function (this: APIHandler<HootAudioControlsMessageRegistry>) {
         return {
             type: "HOOT_GLOBAL_INFO" as const,
-            volume: getGlobalVolume(),
+            volume: audioHandler.volume,
         }
     });
     
     handler.setHandler("HOOT_GET_AUDIO_INFO", async function (this: APIHandler<HootAudioControlsMessageRegistry>, message: HootGetAudioInfoMessage) {
-        const playlist = playing[message.playlist];
-        updateMediaSession();
+        const playlist = audioHandler.playing[message.playlist];
+        updateMediaSession(audioHandler);
         if (playlist === undefined) {
             return makeErrorMessage(message.id,  "playlist is not loaded");
         }
@@ -182,10 +121,10 @@ function setupAudioControlsAPIHandler() {
     });
     
     handler.setHandler("HOOT_GET_PLAYING_INFO", async function (this: APIHandler<HootAudioControlsMessageRegistry>) {
-        updateMediaSession();
+        updateMediaSession(audioHandler);
         return {
             type: "HOOT_PLAYING_INFO" as const,
-            playing: Object.fromEntries(Object.entries(playing).map(([key, pc]) => [key, {
+            playing: Object.fromEntries(Object.entries(audioHandler.playing).map(([key, pc]) => [key, {
                 title: pc.currentTrack.name,
                 source: pc.currentTrack.source,
                 id: pc.currentTrack.id,
@@ -198,13 +137,17 @@ function setupAudioControlsAPIHandler() {
     });
 
     handler.setHandler("HOOT_SET_GLOBAL_VOLUME", async function (this: APIHandler<HootAudioControlsMessageRegistry>, message: HootSetGlobalVolumeMessage) {
-        setGlobalVolume(message.volume);
+        audioHandler.volume = message.volume;
         return { type: "HOOT_SUCCESS" };
     });
     
     handler.setHandler("HOOT_PLAY_AUDIO", async function (this: APIHandler<HootAudioControlsMessageRegistry>, message: HootPlayAudioMessage) {
         try {
-            const pc = await playTrack(message.track, message.playlist ?? null, message.playOnLoad);
+            const pc = await audioHandler.playTrack(message.track, message.playlist ?? null, library, message.playOnLoad);
+            if (message.playlist !== undefined) {
+                const playlist = message.playlist;
+                pc.addOnLoadHandler(() => reportTrackChange(playlist));
+            }
             if (message.waitForFinish) {
                 const promise = new Promise((resolve, reject) => {
                     pc.addOnEndHandler(() => resolve(null));
@@ -222,12 +165,12 @@ function setupAudioControlsAPIHandler() {
             return makeErrorMessage(message.id, (error as Error).message);
         }
         finally {
-            updateMediaSession();
+            updateMediaSession(audioHandler);
         }
     });
 
     handler.setHandler("HOOT_PLAY", async function (this: APIHandler<HootAudioControlsMessageRegistry>, message: HootPlayMessage) {
-        const playlistController = playing[message.playlist];
+        const playlistController = audioHandler.playing[message.playlist];
         if (playlistController === undefined) {
             return makeErrorMessage(message.id, `playlist "${message.playlist}" is not loaded`);
         }
@@ -240,13 +183,13 @@ function setupAudioControlsAPIHandler() {
             return makeErrorMessage(message.id, (error as Error).message);
         }
         finally {
-            updateMediaSession();
+            updateMediaSession(audioHandler);
         }
         return { type: "HOOT_SUCCESS" };
     });
     
     handler.setHandler("HOOT_PAUSE", async function (this: APIHandler<HootAudioControlsMessageRegistry>, message: HootPauseMessage) {
-        const playlistController = playing[message.playlist];
+        const playlistController = audioHandler.playing[message.playlist];
         if (playlistController === undefined) {
             return makeErrorMessage(message.id, `playlist "${message.playlist}" is not loaded`);
         }
@@ -259,13 +202,13 @@ function setupAudioControlsAPIHandler() {
             return makeErrorMessage(message.id, (error as Error).message);
         }
         finally {
-            updateMediaSession();
+            updateMediaSession(audioHandler);
         }
         return { type: "HOOT_SUCCESS" };
     });
 
     handler.setHandler("HOOT_FADE", async function (this: APIHandler<HootAudioControlsMessageRegistry>, message: HootFadeMessage) {
-        const playlistController = playing[message.playlist];
+        const playlistController = audioHandler.playing[message.playlist];
         if (playlistController === undefined) {
             return makeErrorMessage(message.id, `playlist "${message.playlist}" is not loaded`);
         }
@@ -288,13 +231,13 @@ function setupAudioControlsAPIHandler() {
             return makeErrorMessage(message.id, (error as Error).message);
         }
         finally {
-            updateMediaSession();
+            updateMediaSession(audioHandler);
         }
         return { type: "HOOT_SUCCESS" };
     });
 
     handler.setHandler("HOOT_NEXT_TRACK", async function (this: APIHandler<HootAudioControlsMessageRegistry>, message: HootNextTrackMessage) {
-        const playlistController = playing[message.playlist];
+        const playlistController = audioHandler.playing[message.playlist];
         if (playlistController === undefined) {
             return makeErrorMessage(message.id, `playlist "${message.playlist}" is not loaded`);
         }
@@ -304,7 +247,7 @@ function setupAudioControlsAPIHandler() {
     });
 
     handler.setHandler("HOOT_PREVIOUS_TRACK", async function (this: APIHandler<HootAudioControlsMessageRegistry>, message: HootPreviousTrackMessage) {
-        const playlistController = playing[message.playlist];
+        const playlistController = audioHandler.playing[message.playlist];
         if (playlistController === undefined) {
             return makeErrorMessage(message.id, `playlist "${message.playlist}" is not loaded`);
         }
@@ -314,7 +257,7 @@ function setupAudioControlsAPIHandler() {
     });
 
     handler.setHandler("HOOT_SET_VOLUME", async function (this: APIHandler<HootAudioControlsMessageRegistry>, message: HootSetVolumeMessage) {
-        const playlistController = playing[message.playlist];
+        const playlistController = audioHandler.playing[message.playlist];
         if (playlistController === undefined) {
             return makeErrorMessage(message.id, `playlist "${message.playlist}" is not loaded`);
         }
@@ -324,7 +267,7 @@ function setupAudioControlsAPIHandler() {
     });
 
     handler.setHandler("HOOT_SEEK", async function (this: APIHandler<HootAudioControlsMessageRegistry>, message: HootSeekMessage) {
-        const playlistController = playing[message.playlist];
+        const playlistController = audioHandler.playing[message.playlist];
         if (playlistController === undefined) {
             return makeErrorMessage(message.id, `playlist "${message.playlist}" is not loaded`);
         }
@@ -334,7 +277,7 @@ function setupAudioControlsAPIHandler() {
     });
 
     handler.setHandler("HOOT_SET_REPEAT_MODE", async function (this: APIHandler<HootAudioControlsMessageRegistry>, message: HootSetRepeatModeMessage) {
-        const playlistController = playing[message.playlist];
+        const playlistController = audioHandler.playing[message.playlist];
         if (playlistController === undefined) {
             return makeErrorMessage(message.id, `playlist "${message.playlist}" is not loaded`);
         }
@@ -343,7 +286,7 @@ function setupAudioControlsAPIHandler() {
     });
     
     handler.setHandler("HOOT_SET_SHUFFLE", async function (this: APIHandler<HootAudioControlsMessageRegistry>, message: HootSetShuffleMessage) {
-        const playlistController = playing[message.playlist];
+        const playlistController = audioHandler.playing[message.playlist];
         if (playlistController === undefined) {
             return makeErrorMessage(message.id, `playlist "${message.playlist}" is not loaded`);
         }
@@ -352,13 +295,13 @@ function setupAudioControlsAPIHandler() {
     });
 
     handler.setHandler("HOOT_UNLOAD", async function (this: APIHandler<HootAudioControlsMessageRegistry>, message: HootUnloadMessage) {
-        const playlistController = playing[message.playlist];
+        const playlistController = audioHandler.playing[message.playlist];
         if (playlistController === undefined) {
             return makeErrorMessage(message.id, `playlist "${message.playlist}" is not loaded`);
         }
         try {
             playlistController.pause();
-            delete playing[message.playlist];
+            delete audioHandler.playing[message.playlist];
             reportPlaylistChange();
         }
         catch (error) {
@@ -366,7 +309,7 @@ function setupAudioControlsAPIHandler() {
             return makeErrorMessage(message.id, (error as Error).message);
         }
         finally {
-            updateMediaSession();
+            updateMediaSession(audioHandler);
         }
         return { type: "HOOT_SUCCESS" };
     });
@@ -387,7 +330,7 @@ function setupAudioControlsAPIHandler() {
 
 export async function setup() {
     library.fetch();
-    initGlobalAudioContext();
+    audioHandler.reset();
     setupMediaSession();
     setupModalListener();
     setupAudioControlsAPIHandler();
