@@ -1,4 +1,3 @@
-import { AudioObject, useControlledAudio } from "../providers/ControlledPlayerProvider";
 import { Box, Button, Card, Collapse, IconButton, Slider, Typography } from "@mui/material";
 import { FadeMessagePayload, MessageContent } from "../types/messages";
 import { PlayerSettingsProvider, usePlayerSettings } from "../providers/PlayerSettingsProvider";
@@ -28,10 +27,8 @@ function PlayerAudioIndicator({
     triggerPlayback
 }: PlayerAudioIndicatorProps) {
     const { registerMessageHandler } = useOBRBroadcast<MessageContent>();
-    const { loadTrack, unloadTrack } = useControlledAudio();
     const { playlistVolume, setPlaylistVolume } = usePlayerSettings();
     const prevTrackIdRef = useRef<string|null>(null);
-    const audioObjectRef = useRef<AudioObject|null>(null);
     
     const [ track, setTrack ] = useState(referenceTrack);
     const trackId = useMemo(() => track?.id ?? null, [track?.id]);

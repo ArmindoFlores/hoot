@@ -1,6 +1,6 @@
 import { APP_KEY, STORAGE_KEYS } from "../config";
 import { Box, Typography } from "@mui/material";
-import { apiService, isError } from "../services/apiService";
+import { backendAPIService, isBackendAPIError } from "../services/backendAPIService";
 import { useEffect, useState } from "react";
 
 import { Line } from "rc-progress";
@@ -50,12 +50,12 @@ export function ImportLocalTracksModal() {
         if (currentTrack == undefined) {
             return;
         }
-        apiService.addTrackFromURL(
+        backendAPIService.addTrackFromURL(
             currentTrack.name,
             currentTrack.playlists ?? [],
             currentTrack.source!
         ).then(result => {
-            if (isError(result)) {
+            if (isBackendAPIError(result)) {
                 throw new Error(result.error);
             }
             setProgress(old => old + 1);

@@ -1,4 +1,4 @@
-import { apiService, isError } from "../services/apiService";
+import { backendAPIService, isBackendAPIError } from "../services/backendAPIService";
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 
 import OBR from "@owlbear-rodeo/sdk";
@@ -30,8 +30,8 @@ export function AuthProvider({ children }: { children: React.ReactNode, proxy: b
     const [ refreshCounter, setRefreshCounter ] = useState(0);
 
     useEffect(() => {
-        apiService.getProfile().then(result => {
-            if (isError(result)) {
+        backendAPIService.getProfile().then(result => {
+            if (isBackendAPIError(result)) {
                 if (result.error.startsWith("Logged out")) {
                     setStatus("LOGGED_OUT");
                     return;

@@ -2,7 +2,7 @@
 
 import { APP_KEY, STORAGE_KEYS } from "../config";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { apiService, isError } from "../services/apiService";
+import { backendAPIService, isBackendAPIError } from "../services/backendAPIService";
 
 import OBR from "@owlbear-rodeo/sdk";
 import { Track } from "../types/tracks";
@@ -106,8 +106,8 @@ export function TrackProvider({ children, proxy }: { children: React.ReactNode, 
                 return;
             }
             if (track.source == undefined || expired(track.source_expiration)) {
-                apiService.getTrack(track.id).then(updatedTrack => {
-                    if (isError(updatedTrack)) {
+                backendAPIService.getTrack(track.id).then(updatedTrack => {
+                    if (isBackendAPIError(updatedTrack)) {
                         reject(new Error(updatedTrack.error));
                         return;
                     }
@@ -178,9 +178,9 @@ export function TrackProvider({ children, proxy }: { children: React.ReactNode, 
         if (status == "LOGGED_OUT") return;
         let cancelled = false;
 
-        apiService.getTracks().then(result => {
+        backendAPIService.getTracks().then(result => {
             if (cancelled) return;
-            if (isError(result)) {
+            if (isBackendAPIError(result)) {
                 throw new Error(result.error);
             }
             const tracks = new Map(Object.entries(result));

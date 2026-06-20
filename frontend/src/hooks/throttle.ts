@@ -23,7 +23,7 @@ export function useThrottled<T extends unknown[], R>(fn: (...args: T) => R, dela
             if (timeoutRef.current !== null) { 
                 clearTimeout(timeoutRef.current);
             }
-            timeoutRef.current = setTimeout(() => {
+            timeoutRef.current = window.setTimeout(() => {
                 fn(...args);
                 cleanup();
             }, delay);
