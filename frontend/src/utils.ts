@@ -1,4 +1,10 @@
+import { APP_KEY } from "./config";
+
 const FADE_VOLUME_BASELINE = 0.001;
+
+export function id(...path: string[]) {
+    return `${APP_KEY}/${path.join("/")}`;
+}
 
 export function fadeInVolume(target: number, step: number, totalSteps: number): number {
     return FADE_VOLUME_BASELINE * Math.exp((Math.log(target / FADE_VOLUME_BASELINE) * step) / totalSteps);
@@ -62,4 +68,8 @@ export function capitalize(s: string): string {
 
 export function title(s: string): string {
     return s.split(" ").map(word => capitalize(word)).join(" ");
+}
+
+export function mod(a: number, b: number) {
+    return ((a % b) + b) % b;
 }

@@ -5,11 +5,11 @@ function info(...data: any[]) {
 }
 
 function warn(...data: any[]) {
-    console.log("%cHoot 🦉", "background:#ffa114;border-radius:9999px;color:#000;padding:3px 7px;font-weight:bold;", ...data);
+    console.warn("%cHoot 🦉", "background:#ffa114;border-radius:9999px;color:#000;padding:3px 7px;font-weight:bold;", ...data);
 }
 
 function error(...data: any[]) {
-    console.log("%cHoot 🦉", "background:#ffa114;border-radius:9999px;color:#000;padding:3px 7px;font-weight:bold;", ...data);
+    console.error("%cHoot 🦉", "background:#ffa114;border-radius:9999px;color:#000;padding:3px 7px;font-weight:bold;", ...data);
 }
 
 export const logging = {

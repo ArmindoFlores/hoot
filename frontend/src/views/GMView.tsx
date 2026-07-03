@@ -1,19 +1,14 @@
 import { Box, Button, Input, Link, Tab, Tabs, Typography } from "@mui/material";
-import { apiService, createQueryFn } from "../services/apiService";
-import { useEffect, useState } from "react";
+import { backendAPIService, createQueryFn } from "../services/backendAPIService";
 
 import { AudioPlayerView } from "./AudioPlayerView";
-import { Autoplay } from "../components/Autoplay";
-import { INTERNAL_BROADCAST_CHANNEL } from "../config";
-import { MessageContent } from "../types/messages";
 import OBR from "@owlbear-rodeo/sdk";
 import { SceneView } from "./SceneView";
 import { SettingsView } from "./Settings";
 import { TrackListView } from "./TrackListView";
 import { User } from "../types/user";
-import { useAudio } from "../providers/AudioPlayerProvider";
 import { useAuth } from "../providers/AuthProvider";
-import { useOBRBroadcast } from "../hooks/obr";
+import { useState } from "react";
 
 interface TabPanelProps {
     children?: React.ReactNode;
@@ -22,16 +17,20 @@ interface TabPanelProps {
 }
 
 function TabPanel(props: TabPanelProps) {
+    const [hasBeenVisible, setHasBeenVisible] = useState(false);
     const { children, value, index, ...other } = props;
 
+    if (value === index && !hasBeenVisible) setHasBeenVisible(true);
+    if (!hasBeenVisible) return null;
+
     return (
-        <div
+        <Box
             role="tabpanel"
-            hidden={value !== index}
+            sx={{ display: value === index ? "block" : "none" }}
             {...other}
         >
-            {value === index && <>{children}</>}
-        </div>
+            {children}
+        </Box>
     );
 }
 
@@ -41,7 +40,7 @@ function LoginForm({ onLogin }: { onLogin: (user: User) => void }) {
 
     const handleLogin = (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        createQueryFn(() => apiService.login(email, password))().then(result => {   
+        createQueryFn(() => backendAPIService.login(email, password))().then(result => {   
             OBR.notification.show("Login successful", "SUCCESS");
             onLogin(result);
         }).catch((error: Error) => {
@@ -85,55 +84,7 @@ function LoginForm({ onLogin }: { onLogin: (user: User) => void }) {
 
 export function GMView() {
     const { status, doLogin } = useAuth();
-    const { triggerEvent } = useAudio();
-    const { registerMessageHandler } = useOBRBroadcast<MessageContent>();
     const [selectedTab, setTab] = useState(0);
-
-    useEffect(() => {
-        if (status === "LOGGED_OUT") {
-            return;
-        }
-        return registerMessageHandler(INTERNAL_BROADCAST_CHANNEL, message => {
-            // When a new user appears, sync them
-            if (message.type === "hello") {
-                triggerEvent();
-            }
-        });
-    }, [registerMessageHandler, triggerEvent, status]);
-
-
-    // useEffect(() => {
-    //     return registerMessageHandler(`${APP_KEY}/external`, message => {
-    //         // Allow other extensions to talk to hoot
-    //         if (message.type === "play") {
-    //             const payload = message.payload;
-    //             const playlist = payload.playlist;
-    //             const trackName = payload.track;
-    //             const trackId = Array.from(tracks.entries()).map(o => o[1]).flat().find(t => t.name === trackName)?.id;
-    //             const playlistTracks = tracks.get(playlist);
-    //             if (playlistTracks == undefined) {
-    //                 logging.error("Couldn't find playlist");
-    //                 return;
-    //             }
-    //             const track = playlistTracks.find(t => t.id === trackId);
-    //             if (track == undefined) {
-    //                 logging.error("Couldn't find track");
-    //                 return;
-    //             }
-    //             if (payload.shuffle != undefined) {
-    //                 setShuffle(payload.shuffle, playlist);
-    //             }
-    //             if (payload.repeatMode != undefined) {
-    //                 setRepeatMode(payload.repeatMode, playlist);
-    //             }
-    //             if (payload.volume != undefined || playing[playlist] == undefined) {
-    //                 setVolume(payload.volume ?? 0.75, playlist);
-    //             }
-    //             setTrack(track, playlist);
-    //             setIsPlaying(true, playlist);
-    //         }
-    //     });
-    // }, [registerMessageHandler, setIsPlaying, setTrack, tracks, setShuffle, setRepeatMode, setVolume, playing]);
 
     if (status === "LOGGED_OUT") {
         return <Box sx={{ padding: 2, height: "100vh", overflow: "hidden" }}>
@@ -165,6 +116,5 @@ export function GMView() {
         <TabPanel value={selectedTab} index={3}>
             <SettingsView />
         </TabPanel>
-        <Autoplay />
     </Box>;
 }

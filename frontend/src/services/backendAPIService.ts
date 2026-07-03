@@ -4,20 +4,20 @@ import { ENDPOINT } from "../config";
 import { Track } from "../types/tracks";
 import { User } from "../types/user";
 
-export type ApiError = {
+export type BackendAPIError = {
     error: string;
 };
 
-export type ApiResponse<T> = Promise<T|ApiError>;
+export type BackendAPIResponse<T> = Promise<T|BackendAPIError>;
 
-export function isError<T>(response: T|ApiError): response is ApiError {
-    return (response as ApiError).error != undefined;
+export function isBackendAPIError<T>(response: T|BackendAPIError): response is BackendAPIError {
+    return (response as BackendAPIError).error != undefined;
 }
 
-export function createQueryFn<T>(fn: () => ApiResponse<T>) {
+export function createQueryFn<T>(fn: () => BackendAPIResponse<T>) {
     return async () => {
         const result = await fn();
-        if (isError(result)) {
+        if (isBackendAPIError(result)) {
             throw new Error(result.error);
         }
         return result;
@@ -40,7 +40,7 @@ async function request(endpoint: string, method: string, body?: BodyInit, json =
     return req.json();
 }
 
-function addTrack(name: string, playlists: string[], file: File, parent: number|null): ApiResponse<Track> {
+function addTrack(name: string, playlists: string[], file: File, parent: number|null): BackendAPIResponse<Track> {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("metadata", JSON.stringify({
@@ -57,7 +57,7 @@ function addTrack(name: string, playlists: string[], file: File, parent: number|
     );
 }
 
-function editTrack(id: number, name: string, playlists: string[]): ApiResponse<never> {
+function editTrack(id: number, name: string, playlists: string[]): BackendAPIResponse<never> {
     return request(
         `/tracks/${id}`,
         "PATCH",
@@ -68,7 +68,7 @@ function editTrack(id: number, name: string, playlists: string[]): ApiResponse<n
     )
 }
 
-function addTrackFromURL(name: string, playlists: string[], source: string): ApiResponse<Track> {
+function addTrackFromURL(name: string, playlists: string[], source: string): BackendAPIResponse<Track> {
     const formData = new FormData();
     formData.append("metadata", JSON.stringify({
         track_name: name,
@@ -84,7 +84,7 @@ function addTrackFromURL(name: string, playlists: string[], source: string): Api
     );
 }
 
-function deleteTracks(ids: number[]): ApiResponse<never> {
+function deleteTracks(ids: number[]): BackendAPIResponse<never> {
     return request(
         `/tracks`,
         "DELETE",
@@ -94,7 +94,7 @@ function deleteTracks(ids: number[]): ApiResponse<never> {
     );
 }
 
-function addPlaylistsToTracks(trackIds: number[], playlists: string[]): ApiResponse<never> {
+function addPlaylistsToTracks(trackIds: number[], playlists: string[]): BackendAPIResponse<never> {
     return request(
         "/playlists/add_tracks",
         "POST",
@@ -105,7 +105,7 @@ function addPlaylistsToTracks(trackIds: number[], playlists: string[]): ApiRespo
     );
 }
 
-function removePlaylistsFromTracks(trackIds: number[], playlists: string[]): ApiResponse<never> {
+function removePlaylistsFromTracks(trackIds: number[], playlists: string[]): BackendAPIResponse<never> {
     return request(
         "/playlists/remove_tracks",
         "POST",
@@ -116,7 +116,7 @@ function removePlaylistsFromTracks(trackIds: number[], playlists: string[]): Api
     );
 }
 
-function setPlaylistsForTracks(trackIds: number[], playlists: string[]): ApiResponse<never> {
+function setPlaylistsForTracks(trackIds: number[], playlists: string[]): BackendAPIResponse<never> {
     return request(
         "/playlists/edit_tracks",
         "POST",
@@ -127,31 +127,31 @@ function setPlaylistsForTracks(trackIds: number[], playlists: string[]): ApiResp
     );
 }
 
-function getProfile(): ApiResponse<User> {
+function getProfile(): BackendAPIResponse<User> {
     return request("/user", "GET");
 }
 
-function getPlaylists(): ApiResponse<string[]> {
+function getPlaylists(): BackendAPIResponse<string[]> {
     return request("/playlists", "GET");
 }
 
-function getPlaylistsWithIDs(): ApiResponse<{id: number, name: string}[]> {
+function getPlaylistsWithIDs(): BackendAPIResponse<{id: number, name: string}[]> {
     return request("/playlists?include_ids=true", "GET");
 }
 
-function getPlaylistTracks(playlist?: number): ApiResponse<Track[]> {
+function getPlaylistTracks(playlist?: number): BackendAPIResponse<Track[]> {
     return request(`/playlists/${playlist ?? "all"}/tracks`, "GET");
 }
 
-function getTrack(trackId: number): ApiResponse<Track> {
+function getTrack(trackId: number): BackendAPIResponse<Track> {
     return request(`/tracks/${trackId}`, "GET");
 }
 
-function getTracks(): ApiResponse<Record<string, Track[]>> {
+function getTracks(): BackendAPIResponse<Record<string, Track[]>> {
     return request("/tracks", "GET");
 }
 
-function searchForTracks(searchString: string|null, playlists: string[]|null, offset: number = 0, limit: number = 20): ApiResponse<InfiniteQuery<SearchedItem>> {
+function searchForTracks(searchString: string|null, playlists: string[]|null, offset: number = 0, limit: number = 20): BackendAPIResponse<InfiniteQuery<SearchedItem>> {
     return request(
         "/tracks/search",
         "POST",
@@ -164,14 +164,14 @@ function searchForTracks(searchString: string|null, playlists: string[]|null, of
     );
 }
 
-function getDirectoryContents(id: number|null): ApiResponse<DirectoryContents> {
+function getDirectoryContents(id: number|null): BackendAPIResponse<DirectoryContents> {
     return request(
         `/storage/${id}/contents`,
         "GET",
     );
 }
 
-function createDirectory(name: string, parent: number|null): ApiResponse<never> {
+function createDirectory(name: string, parent: number|null): BackendAPIResponse<never> {
     return request(
         `/storage/${parent}`,
         "POST",
@@ -181,7 +181,7 @@ function createDirectory(name: string, parent: number|null): ApiResponse<never> 
     );
 }
 
-function createPlaylist(name: string): ApiResponse<never> {
+function createPlaylist(name: string): BackendAPIResponse<never> {
     return request(
         `/playlists`,
         "POST",
@@ -189,7 +189,7 @@ function createPlaylist(name: string): ApiResponse<never> {
     );
 }
 
-function moveItems(items: { id: number, type: DirectoryItem["type"] }[], parent: number|null): ApiResponse<never> {
+function moveItems(items: { id: number, type: DirectoryItem["type"] }[], parent: number|null): BackendAPIResponse<never> {
     return request(
         `/storage/move`,
         "POST",
@@ -200,7 +200,7 @@ function moveItems(items: { id: number, type: DirectoryItem["type"] }[], parent:
     );
 }
 
-function renameDirectory(id: number, name: string): ApiResponse<never> {
+function renameDirectory(id: number, name: string): BackendAPIResponse<never> {
     return request(
         `/storage/${id}/rename`,
         "PATCH",
@@ -210,7 +210,7 @@ function renameDirectory(id: number, name: string): ApiResponse<never> {
     );
 }
 
-function deleteDirectories(ids: number[]): ApiResponse<never> {
+function deleteDirectories(ids: number[]): BackendAPIResponse<never> {
     return request(
         `/storage`,
         "DELETE",
@@ -220,7 +220,7 @@ function deleteDirectories(ids: number[]): ApiResponse<never> {
     );
 }
 
-function deletePlaylists(ids: number[]): ApiResponse<never> {
+function deletePlaylists(ids: number[]): BackendAPIResponse<never> {
     return request(
         `/playlists`,
         "DELETE",
@@ -230,14 +230,14 @@ function deletePlaylists(ids: number[]): ApiResponse<never> {
     );
 }
 
-function getDirectoryInfo(id: number): ApiResponse<DirectoryType> {
+function getDirectoryInfo(id: number): BackendAPIResponse<DirectoryType> {
     return request(
         `/storage/${id}`,
         "GET",
     );
 }
 
-function login(email: string, password: string): ApiResponse<User> {
+function login(email: string, password: string): BackendAPIResponse<User> {
     return request(
         "/auth/login",
         "POST",
@@ -248,14 +248,14 @@ function login(email: string, password: string): ApiResponse<User> {
     );
 }
 
-function logout(): ApiResponse<never> {
+function logout(): BackendAPIResponse<never> {
     return request(
         "/auth/logout",
         "POST",
     );
 }
 
-function signup(email: string, username: string, password: string, confirmPassword: string): ApiResponse<never> {
+function signup(email: string, username: string, password: string, confirmPassword: string): BackendAPIResponse<never> {
     return request(
         "/user",
         "PUT",
@@ -268,7 +268,7 @@ function signup(email: string, username: string, password: string, confirmPasswo
     );
 }
 
-function unlinkPatreon(): ApiResponse<never> {
+function unlinkPatreon(): BackendAPIResponse<never> {
     return request(
         "/user/unlink_patreon",
         "POST",
@@ -282,7 +282,7 @@ function verifyEmail(verificationCode: string) {
     );
 }
 
-export const apiService = {
+export const backendAPIService = {
     addTrack,
     addTrackFromURL,
     editTrack,

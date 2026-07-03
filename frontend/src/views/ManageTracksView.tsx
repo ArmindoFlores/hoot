@@ -3,7 +3,8 @@ import { Autocomplete, Box, Breadcrumbs, Button, Card, Checkbox, CircularProgres
 import { DirectoryContents, DirectoryItem, DirectoryType, InfiniteQuery, SearchedItem } from "../types/storage";
 import { DndContext, DragEndEvent, DragOverEvent, DragOverlay, DragStartEvent, pointerWithin, useDraggable, useDroppable } from "@dnd-kit/core";
 import { InfiniteData, UseInfiniteQueryResult, useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { apiService, createQueryFn, isError } from "../services/apiService";
+import { backendAPIService, createQueryFn, isBackendAPIError } from "../services/backendAPIService";
+import { capitalize, uniqueId } from "lodash";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { APP_KEY } from "../config";
@@ -11,7 +12,7 @@ import { BaseTheme } from "@mui/material/styles/createThemeNoVars";
 import { Modal } from "@owlbear-rodeo/sdk/lib/types/Modal";
 import OBR from "@owlbear-rodeo/sdk";
 import { Track } from "../types/tracks";
-import { capitalize } from "lodash";
+import { constants } from "../constants";
 import { useContextMenu } from "../hooks";
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -872,13 +873,13 @@ function SearchResultsDialog({
     const [paginationLimit, setPaginationLimit] = useState<number>(15);
 
     const fetchResults = async ({ pageParam = 0 }) => {
-        const result = await apiService.searchForTracks(
+        const result = await backendAPIService.searchForTracks(
             searchString,
             filterPlaylists ? playlists : null,
             pageParam * paginationLimit,
             paginationLimit
         );
-        if (isError(result)) {
+        if (isBackendAPIError(result)) {
             throw new Error(result.error);
         }
         return result;
@@ -1039,25 +1040,26 @@ export function ManageTracksModal() {
     const [viewType, setViewType] = useState("tracks");
 
     const menuOptionsButtonRef = useRef<HTMLButtonElement|null>(null);
+    const modalUniqueID = useRef(uniqueId());
     const contextMenuHandler = useContextMenu();
     const globalContextMenuHandler = useContextMenu();
 
     const playlistsQuery = useQuery({
         queryKey: ["playlists"],
-        queryFn: createQueryFn(apiService.getPlaylistsWithIDs)
+        queryFn: createQueryFn(backendAPIService.getPlaylistsWithIDs)
     });
 
     const playlists = useMemo(() => playlistsQuery.data ? playlistsQuery.data.map(p => p.name) : undefined, [playlistsQuery.data]);
 
     const directoryContentsQuery = useQuery({
         queryKey: ["directory-contents", currentDirectory],
-        queryFn: createQueryFn(() => apiService.getDirectoryContents(currentDirectory)),
+        queryFn: createQueryFn(() => backendAPIService.getDirectoryContents(currentDirectory)),
         enabled: viewType === "tracks"
     });
 
     const playlistContentsQuery = useQuery({
         queryKey: ["playlist-contents", currentDirectory],
-        queryFn: createQueryFn(() => apiService.getPlaylistTracks(currentDirectory ?? undefined)),
+        queryFn: createQueryFn(() => backendAPIService.getPlaylistTracks(currentDirectory ?? undefined)),
         enabled: viewType === "playlists"
     });
 
@@ -1077,7 +1079,7 @@ export function ManageTracksModal() {
 
     const detailedTrack = useQuery({
         queryKey: ["detailed-track", detailedItem?.id, detailedItem?.type],
-        queryFn: createQueryFn(() => detailedItem && detailedItem.type === "TRACK" ? apiService.getTrack(detailedItem.id) : Promise.resolve({ error: "" })),
+        queryFn: createQueryFn(() => detailedItem && detailedItem.type === "TRACK" ? backendAPIService.getTrack(detailedItem.id) : Promise.resolve({ error: "" })),
     });
 
     const openDialog = useCallback((modal: DialogType) => {
@@ -1092,14 +1094,14 @@ export function ManageTracksModal() {
         const formJson = Object.fromEntries(formData.entries());
         const name = formJson.name as string;
         if (viewType === "tracks") {
-            createQueryFn(() => apiService.createDirectory(name, currentDirectory))().then(() => {
+            createQueryFn(() => backendAPIService.createDirectory(name, currentDirectory))().then(() => {
                 directoryContentsQuery.refetch();
             }).catch((error: Error) => {
                 OBR.notification.show(error.message, "ERROR");
             });
         }
         else {
-            createQueryFn(() => apiService.createPlaylist(name))().then(() => {
+            createQueryFn(() => backendAPIService.createPlaylist(name))().then(() => {
                 playlistsQuery.refetch();
             }).catch((error: Error) => {
                 OBR.notification.show(error.message, "ERROR");
@@ -1124,7 +1126,7 @@ export function ManageTracksModal() {
 
         closeDialog();
 
-        createQueryFn(() => apiService.addTrack(name, playlistsToAdd, file, currentDirectory))().then(() => {
+        createQueryFn(() => backendAPIService.addTrack(name, playlistsToAdd, file, currentDirectory))().then(() => {
             playlistsQuery.refetch();
             directoryContentsQuery.refetch();
         }).catch((error: Error) => {
@@ -1140,15 +1142,15 @@ export function ManageTracksModal() {
         const promises: Promise<never>[] = [];
         if (tracksToDelete.length > 0) {
             if (directoryStack.length === 0 || viewType === "tracks") {
-                promises.push(createQueryFn(() => apiService.deleteTracks(tracksToDelete.map(item => item.id)))());
+                promises.push(createQueryFn(() => backendAPIService.deleteTracks(tracksToDelete.map(item => item.id)))());
             }
             else {
                 const currentPlaylist = directoryStack[directoryStack.length - 1].name;
-                promises.push(createQueryFn(() => apiService.removePlaylistsFromTracks(tracksToDelete.map(item => item.id), [currentPlaylist]))());
+                promises.push(createQueryFn(() => backendAPIService.removePlaylistsFromTracks(tracksToDelete.map(item => item.id), [currentPlaylist]))());
             }
         }
         if (directoriesToDelete.length > 0) {
-            const deleteFunc = viewType === "tracks" ? apiService.deleteDirectories : apiService.deletePlaylists;
+            const deleteFunc = viewType === "tracks" ? backendAPIService.deleteDirectories : backendAPIService.deletePlaylists;
             promises.push(createQueryFn(() => deleteFunc(directoriesToDelete.map(item => item.id)))());
         }
 
@@ -1175,7 +1177,7 @@ export function ManageTracksModal() {
             OBR.notification.show("No directory speficied", "ERROR");
             return;
         }
-        createQueryFn(() => apiService.editTrack(detailedItem.id, detailedItem.name, (detailedItem as Track).playlists ?? []))().then(() => {
+        createQueryFn(() => backendAPIService.editTrack(detailedItem.id, detailedItem.name, (detailedItem as Track).playlists ?? []))().then(() => {
             directoryContentsQuery.refetch();
             playlistsQuery.refetch();
             detailedTrack.refetch();
@@ -1191,7 +1193,7 @@ export function ManageTracksModal() {
             OBR.notification.show("No directory speficied", "ERROR");
             return;
         }
-        createQueryFn(() => apiService.renameDirectory(contextMenuItem.id, contextMenuItem.name))().then(() => {
+        createQueryFn(() => backendAPIService.renameDirectory(contextMenuItem.id, contextMenuItem.name))().then(() => {
             directoryContentsQuery.refetch();
         }).catch((error: Error) => {
             OBR.notification.show(error.message, "ERROR");
@@ -1203,9 +1205,9 @@ export function ManageTracksModal() {
         e.preventDefault();
         console.log("Playlists to add", playlistsToAdd);
         const func = editPlaylistsMenuAction === "add" ?
-            apiService.addPlaylistsToTracks : (editPlaylistsMenuAction === "remove" ? 
-            apiService.removePlaylistsFromTracks : 
-            apiService.setPlaylistsForTracks);
+            backendAPIService.addPlaylistsToTracks : (editPlaylistsMenuAction === "remove" ? 
+            backendAPIService.removePlaylistsFromTracks : 
+            backendAPIService.setPlaylistsForTracks);
         const promise = createQueryFn(() => func(selectedItems.filter(item => item.type == "TRACK").map(item => item.id), playlistsToAdd));
         promise().then(() => {
             playlistsQuery.refetch();
@@ -1295,7 +1297,7 @@ export function ManageTracksModal() {
 
     const navigationReplace = useCallback((id: number|null) => {
         if (id != null) {
-            createQueryFn(() => apiService.getDirectoryInfo(id))().then(item => {
+            createQueryFn(() => backendAPIService.getDirectoryInfo(id))().then(item => {
                 setCurrentDirectory(item.id);
                 setDirectoryStack([item]);
             });
@@ -1356,7 +1358,7 @@ export function ManageTracksModal() {
         }
 
         if (viewType === "tracks") {
-            createQueryFn(() => apiService.moveItems(itemsToDrag, overObj.id as number))().then(() => {
+            createQueryFn(() => backendAPIService.moveItems(itemsToDrag, overObj.id as number))().then(() => {
                 directoryContentsQuery.refetch();
             }).catch((error: Error) => {
                 OBR.notification.show(error.message, "ERROR");
@@ -1365,7 +1367,7 @@ export function ManageTracksModal() {
         else {
             const overPlaylist = playlistsQuery?.data?.find?.(p => p.id === overObj.id);
             if (!overPlaylist) return;
-            createQueryFn(() => apiService.addPlaylistsToTracks(itemsToDrag.map(item => item.id), [overPlaylist.name]))().then(() => {
+            createQueryFn(() => backendAPIService.addPlaylistsToTracks(itemsToDrag.map(item => item.id), [overPlaylist.name]))().then(() => {
                 playlistContentsQuery.refetch();
             }).catch((error: Error) => {
                 OBR.notification.show(error.message, "ERROR");
@@ -1379,7 +1381,7 @@ export function ManageTracksModal() {
         for (const file of files) {
             try {
                 const name = stripExtension(file.name).slice(0, 63);
-                await createQueryFn(() => apiService.addTrack(name, [], file, currentDirectory))();
+                await createQueryFn(() => backendAPIService.addTrack(name, [], file, currentDirectory))();
                 setFileUploadProgress(100 * fc++ /  files.length);
             }
             catch (error) {
@@ -1416,6 +1418,17 @@ export function ManageTracksModal() {
             });
         }
     };
+
+    useEffect(() => {
+        const id = setInterval(() => {
+            OBR.broadcast.sendMessage(
+                constants.MODAL_HEARTBEAT_MESSAGE_CHANNEL_ID,
+                {id: modalUniqueID.current},
+                {destination: "LOCAL"},
+            );
+        }, constants.MODAL_HEARTBEAT_DELAY);
+        return () => clearInterval(id);
+    }, []);
 
     useEffect(() => {
         if (detailedTrack.data == undefined) return;

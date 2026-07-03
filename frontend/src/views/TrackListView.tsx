@@ -1,5 +1,4 @@
 import { ArrowDropDown, ArrowRight, DragIndicator, VolumeUp } from "@mui/icons-material";
-import { AudioObject, useAudio } from "../providers/AudioPlayerProvider";
 import { Box, Button, Card, Collapse, IconButton, Input, Typography } from "@mui/material";
 import { DndContext, DragEndEvent, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
 import {
@@ -9,13 +8,18 @@ import {
     useSortable,
     verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { APP_KEY } from "../config";
 import { CSS } from "@dnd-kit/utilities";
+import { ClientAPI } from "@armindoflores/obr-ext-core";
+import { HootAudioControlsMessageRegistry } from "../types/broadcast/audioControls";
 import OBR from "@owlbear-rodeo/sdk";
 import { Track } from "../types/tracks";
+import { constants } from "../constants";
+import { logging } from "../logging";
 import { manageTracksModal } from "./ManageTracksView";
+import { restrictToWindowEdges } from "@dnd-kit/modifiers";
 import { useTracks } from "../providers/TrackProvider";
 
 const SORTED_PLAYLISTS_METADATA_KEY = `${APP_KEY}/sortedPlaylists`;
@@ -23,7 +27,7 @@ const SORTED_PLAYLISTS_METADATA_KEY = `${APP_KEY}/sortedPlaylists`;
 interface PlaylistItemProps {
     playlist: string;
     playingPlaylists: string[];
-    playing: Record<string, AudioObject | null>;
+    playing: number | null;
     tracks: Map<string, Track[]>;
     playTrack: (track: Track, playlist: string) => Promise<void>;
     trackFilter: (track: Track) => boolean;
@@ -50,7 +54,7 @@ function PlaylistItem({ playlist, playingPlaylists, playing, tracks, playTrack, 
         if (!playingPlaylists.includes(playlist)) {
             return false;
         }
-        if (playing[playlist]?.track?.source !== track.source) {
+        if (playing !== track.id) {
             return false;
         }
         return true;
@@ -123,9 +127,12 @@ function openManageTracksPopup() {
 }
 
 export function TrackListView() {
-    const { tracks, playlists, loadOnlineTrack } = useTracks();
-    const { playing, loadTrack } = useAudio();
-    const playingPlaylists = useMemo(() => Object.keys(playing), [playing]);
+    const audioAPIClient = useRef(new ClientAPI<HootAudioControlsMessageRegistry>(
+        constants.AUDIO_CONTROLLER_MESSAGE_CHANNEL_ID,
+        constants.AUDIO_CONTROLLER_CLIENT_MESSAGE_CHANNEL_ID,
+        "LOCAL",
+    ));
+    const { tracks, playlists } = useTracks();
     const sensors = useSensors(
         useSensor(PointerSensor),
         useSensor(KeyboardSensor, {
@@ -134,6 +141,8 @@ export function TrackListView() {
     );
     
     const [search, setSearch] = useState<string>("");
+    const [ playingPlaylists, setPlayingPlaylists ] = useState<string[]>([]);
+    const [ playingTracks, setPlayingTracks ] = useState<Record<string, number | null>>({});
     const [ sortedPlaylists, setSortedPlaylists ] = useState<string[]>([]);
     const [ playlistSortOrder, setPlaylistSortOrder ] = useState<string[]|null>(null);
 
@@ -159,15 +168,22 @@ export function TrackListView() {
     }, [search]);
 
     const playTrack = useCallback(async (track: Track, playlist: string) => {
-        const updatedTrack = await loadOnlineTrack(track);
-        try {
-            await loadTrack(playlist, updatedTrack.source!, updatedTrack.name, updatedTrack.id.toString());
+        const response = await audioAPIClient.current.request<"HOOT_PLAY_AUDIO">(
+            {
+                type: "HOOT_PLAY_AUDIO",
+                playlist,
+                track: track.id,
+                playOnLoad: false,
+            }
+        );
+        if (response.type === "ERROR") {
+            logging.error(`Error loading track: ${response.error}`);
+            OBR.notification.show(`Error loading track: ${response.error}`, "ERROR");
             return;
         }
-        catch (error) {
-            OBR.notification.show(`Error loading track: ${(error as Error).message}`, "ERROR");
-        }
-    }, [loadTrack, loadOnlineTrack]);
+        setPlayingPlaylists(old => [...old.filter(p => p !== playlist), playlist]);
+        setPlayingTracks(old => ({...old, [playlist]: track.id}));
+    }, []);
 
     function handleDragEnd(event: DragEndEvent) {
         const { active, over } = event;
@@ -183,6 +199,35 @@ export function TrackListView() {
         }
     }
 
+    const fetchData = useCallback(() => {
+        audioAPIClient.current.request<"HOOT_GET_PLAYING_INFO">(
+            {type: "HOOT_GET_PLAYING_INFO"}
+        ).then(response => {
+            if (response.type === "ERROR") {
+                logging.error("internal API error", response.error);
+                return;
+            }
+            
+            setPlayingPlaylists(Object.keys(response.playing));
+            setPlayingTracks(Object.fromEntries(Object.entries(response.playing).map(([key, value]) => [
+                key,
+                value.id
+            ])));
+        });
+    }, []);
+    
+    useEffect(() => {
+        fetchData();
+        
+        window.addEventListener("focus", fetchData);
+        const intervalId = setInterval(fetchData, 5000);
+
+        return () => {
+            window.removeEventListener("focus", fetchData);
+            clearTimeout(intervalId);
+        }
+    }, [fetchData]);
+
     useEffect(() => {
         OBR.room.getMetadata().then(metadata => {
             if (metadata[SORTED_PLAYLISTS_METADATA_KEY] == undefined) return;
@@ -195,45 +240,64 @@ export function TrackListView() {
         return setSortedPlaylists(result);
     }, [playlists, playlistSortOrder]);
 
-    return <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleDragEnd}
-    >
-        <SortableContext 
-            items={sortedPlaylists}
-            strategy={verticalListSortingStrategy}
+    return (
+        <Box
+            sx={{
+                width: "100vw",
+                overflowY: "auto",
+                height: "calc(100vh - 50px)",
+                userSelect: "none",
+            }}
         >
-            <Box sx={{ p: 2, overflow: "auto", height: "calc(100vh - 50px)", userSelect: "none" }}>
-                <Box sx={{ display: "flex", flexDirection: "row", gap: 1 }}>
-                    <Input
-                        className="track-search"
-                        placeholder="Enter a track name or a #playlist"
-                        value={search}
-                        onChange={event => setSearch(event.target.value)}
-                        sx={{ width: "100%" }}
-                    />
-                    <Button variant="outlined" onClick={openManageTracksPopup}>
-                        Manage
-                    </Button>
-                </Box>
-                <Box sx={{ p: 1 }} />
-                <Box>
-                    {
-                        sortedPlaylists.filter(playlist => playlistMatchesSearch(playlist)).map(playlist => {
-                            return <PlaylistItem 
-                                key={playlist}
-                                playlist={playlist}
-                                playing={playing}
-                                playTrack={playTrack}
-                                playingPlaylists={playingPlaylists}
-                                tracks={tracks}
-                                trackFilter={trackMatchesSearch}
-                            />;
-                        })
-                    }
-                </Box>
+            <Box sx={{p: 2, overflowX: "hidden"}}>
+                <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd}
+                    modifiers={[restrictToWindowEdges]}
+                >
+                    <SortableContext
+                        items={sortedPlaylists}
+                        strategy={verticalListSortingStrategy}
+                    >
+                        <Box sx={{ display: "flex", flexDirection: "row", gap: 1 }}>
+                            <Input
+                                className="track-search"
+                                placeholder="Enter a track name or a #playlist"
+                                value={search}
+                                onChange={(event) => setSearch(event.target.value)}
+                                sx={{ width: "100%" }}
+                            />
+                            <Button
+                                variant="outlined"
+                                onClick={openManageTracksPopup}
+                            >
+                                Manage
+                            </Button>
+                        </Box>
+                        <Box sx={{ p: 1 }} />
+                        <Box>
+                            {sortedPlaylists
+                                .filter((playlist) =>
+                                    playlistMatchesSearch(playlist),
+                                )
+                                .map((playlist) => {
+                                    return (
+                                        <PlaylistItem
+                                            key={playlist}
+                                            playlist={playlist}
+                                            playing={playingTracks[playlist]}
+                                            playTrack={playTrack}
+                                            playingPlaylists={playingPlaylists}
+                                            tracks={tracks}
+                                            trackFilter={trackMatchesSearch}
+                                        />
+                                    );
+                                })}
+                        </Box>
+                    </SortableContext>
+                </DndContext>
             </Box>
-            </SortableContext>
-    </DndContext>;
+        </Box>
+    );
 }

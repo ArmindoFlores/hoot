@@ -1,6 +1,6 @@
 import { Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Input, Link, Switch, Typography } from "@mui/material";
 import { PATREON_CLIENT_ID, PATREON_REDIRECT_URI } from "../config";
-import { apiService, isError } from "../services/apiService";
+import { backendAPIService, isBackendAPIError } from "../services/backendAPIService";
 import { faInfoCircle, faUnlink } from "@fortawesome/free-solid-svg-icons";
 import { useEffect, useState } from "react";
 
@@ -48,8 +48,8 @@ export function SettingsView() {
     }
 
     const handleLogout = () => {
-        apiService.logout().then(result => {
-            if (isError(result)) {
+        backendAPIService.logout().then(result => {
+            if (isBackendAPIError(result)) {
                 throw new Error(result.error);
             }
             doLogout();
@@ -59,8 +59,8 @@ export function SettingsView() {
     }
 
     const unlinkFromPatreon = () => {
-        apiService.unlinkPatreon().then(result => {
-            if (isError(result)) {
+        backendAPIService.unlinkPatreon().then(result => {
+            if (isBackendAPIError(result)) {
                 throw new Error(result.error);
             }
             OBR.notification.show("Successfully unlinked Patreon", "SUCCESS");

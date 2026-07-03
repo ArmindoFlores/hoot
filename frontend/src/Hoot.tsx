@@ -1,9 +1,7 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { useOBRBase, useOBRSelf } from "./hooks";
 
-import { AudioPlayerProvider } from "./providers/AudioPlayerProvider";
 import { AuthProvider } from "./providers/AuthProvider";
-import { ControlledPlayerProvider } from "./providers/ControlledPlayerProvider";
 import { GMView } from "./views/GMView";
 import { ImportLocalTracksModal } from "./views/ImportLocalTracksView";
 import { ManageTracksModal } from "./views/ManageTracksView";
@@ -54,17 +52,13 @@ function MainApp({ proxy = false }: { proxy?: boolean }) {
         return <AuthProvider proxy={proxy}>
             <TrackProvider proxy={proxy}>
                 <SettingsProvider proxy={proxy}>
-                    <AudioPlayerProvider>
-                        <GMView />
-                    </AudioPlayerProvider>
+                    <GMView />
                 </SettingsProvider>
             </TrackProvider>
         </AuthProvider>;
     }
     else {
-        return <ControlledPlayerProvider>
-            <PlayerView />
-        </ControlledPlayerProvider>;
+        return <PlayerView />;
     }
 }
 

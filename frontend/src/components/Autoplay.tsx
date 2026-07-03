@@ -4,7 +4,7 @@ import { APP_KEY } from "../config";
 import OBR from "@owlbear-rodeo/sdk";
 import { RepeatMode } from "../types/tracks";
 import { logging } from "../logging";
-import { useAudio } from "../providers/AudioPlayerProvider";
+// import { useAudio } from "../providers/AudioPlayerProvider";
 import { useOBRBase } from "../hooks";
 import { useSettings } from "../providers/SettingsProvider";
 import { useTracks } from "../providers/TrackProvider";

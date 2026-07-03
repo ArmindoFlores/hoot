@@ -1,4 +1,4 @@
-import { apiService, isError } from "../services/apiService";
+import { backendAPIService, isBackendAPIError } from "../services/backendAPIService";
 
 import { logging } from "../logging";
 import { useState } from "react";
@@ -11,8 +11,8 @@ export function SignUpView() {
     const [confirmPassword, setConfirmPassword] = useState("");
 
     const handleLogin = () => {
-        apiService.signup(email, username, password, confirmPassword).then(result => {   
-            if (isError(result)) {
+        backendAPIService.signup(email, username, password, confirmPassword).then(result => {   
+            if (isBackendAPIError(result)) {
                 throw new Error(result.error);
             }
             setCreated(true);

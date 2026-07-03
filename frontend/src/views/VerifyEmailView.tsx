@@ -1,4 +1,4 @@
-import { apiService, isError } from "../services/apiService";
+import { backendAPIService, isBackendAPIError } from "../services/backendAPIService";
 import { useEffect, useState } from "react";
 
 import { logging } from "../logging";
@@ -13,8 +13,8 @@ export function VerifyEmailView() {
         if (verificationCode == undefined) return;
         
         setStatus("pending");
-        apiService.verifyEmail(verificationCode).then(result => {
-            if (isError(result)) {
+        backendAPIService.verifyEmail(verificationCode).then(result => {
+            if (isBackendAPIError(result)) {
                 throw new Error(result.error);
             }
             setStatus("success");
