@@ -1,16 +1,17 @@
-import { APIHandler } from "@armindoflores/obr-ext-core";
+import { APIHandler, ClientAPI } from "@armindoflores/obr-ext-core";
+import { HootPlayingInfo, HootPlaylistAudioInfo } from "../types/broadcast/messages";
+import { NoResponse, isErrorMessage } from "@armindoflores/obr-ext-core/utils";
+
 import { AudioHandler } from "./audioHandler";
 import { HootAsyncUpdatesMessageRegistry } from "../types/broadcast/asyncUpdates";
-import { HootPlaylistAudioInfoMessage } from "../types/broadcast/messages";
-import { NoResponse } from "@armindoflores/obr-ext-core/utils";
+import { HootExternalMessageRegistry } from "../types/broadcast/external";
 import { constants } from "../constants";
 import { logging } from "../logging";
 import { setupMediaSession } from "./mediaSession";
 
 const audioHandler = new AudioHandler();
-window.audioHandler = audioHandler;
 
-async function updatePlaylist(playlist: string, info: HootPlaylistAudioInfoMessage) {
+async function updatePlaylist(playlist: string, info: HootPlaylistAudioInfo) {
     try {
         logging.info("Updating playlist:", playlist, info);
         const trackId = audioHandler.playing[playlist]?.currentTrackId;
@@ -79,6 +80,22 @@ async function fadePlaylist(playlist: string, type: "in" | "out", duration: numb
     }
 }
 
+function updatePlaylists(playing: Record<string, HootPlaylistAudioInfo>, updateTracks: true): undefined;
+function updatePlaylists(playing: Record<string, HootPlayingInfo>, updateTracks: false): undefined;
+function updatePlaylists(playing: Record<string, HootPlaylistAudioInfo | HootPlayingInfo>, updateTracks: boolean): undefined {
+    const playingKeys = Object.keys(playing);
+    for (const playlist of Object.keys(audioHandler.playing)) {
+        if (!playingKeys.includes(playlist)) {
+            audioHandler.closePlaylist(playlist);
+        }
+    }
+    if (updateTracks) {
+        for (const [playlist, playlistInfo] of Object.entries(playing)) {
+            updatePlaylist(playlist, playlistInfo as HootPlaylistAudioInfo);
+        }
+    }
+}
+
 function setupAsyncUpdatesAPIHandler() {
     const handler = new APIHandler<HootAsyncUpdatesMessageRegistry>(
         constants.ASYNC_UPDATES_MESSAGE_CHANNEL_ID,
@@ -86,12 +103,7 @@ function setupAsyncUpdatesAPIHandler() {
     );
 
     handler.setHandler("HOOT_PLAYING_INFO", async message => {
-        const playing = Object.keys(message.playing);
-        for (const playlist of Object.keys(audioHandler.playing)) {
-            if (!playing.includes(playlist)) {
-                audioHandler.closePlaylist(playlist);
-            }
-        }
+        updatePlaylists(message.playing, false);
         return NoResponse;
     });
 
@@ -116,10 +128,28 @@ function setupContextStateMonitor() {
     }, 500);
 }
 
+async function getPlayingTracks() {
+    const client = new ClientAPI<HootExternalMessageRegistry>(
+        constants.EXTERNAL_AUDIO_CONTROLLER_MESSAGE_CHANNEL_ID,
+        constants.EXTERNAL_AUDIO_CONTROLLER_CLIENT_MESSAGE_CHANNEL_ID,
+        "REMOTE",
+    );
+
+    const message = await client.request<"HOOT_GET_FULL_INFO">({type: "HOOT_GET_FULL_INFO"});
+    if (isErrorMessage(message)) {
+        logging.error("failed to get playing tracks", message.error);
+    }
+    else {
+        updatePlaylists(message.playing, true);
+    }
+    logging.info("Updated playlists");
+}
+
 export async function setup() {
     audioHandler.reset();
     setupMediaSession();
     setupAsyncUpdatesAPIHandler();
     setupContextStateMonitor();
-    logging.info("Setup complete");
+    logging.info("Setup complete, asking for playing tracks");
+    getPlayingTracks();    
 }

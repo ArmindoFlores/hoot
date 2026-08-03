@@ -18,8 +18,6 @@ interface PlayerAudioIndicatorProps {
 function PlayerAudioIndicator({ 
     playlist,
     referenceTrack,
-    autoplayError,
-    triggerPlayback
 }: PlayerAudioIndicatorProps) {
     const { playlistVolume, setPlaylistVolume } = usePlayerSettings();
     

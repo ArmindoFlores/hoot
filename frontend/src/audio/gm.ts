@@ -1,10 +1,11 @@
 import { APIHandler, ClientAPI } from "@armindoflores/obr-ext-core";
-import { HootFadeMessage, HootGetAudioInfoMessage, HootNextTrackMessage, HootPauseMessage, HootPlayAudioMessage, HootPlayMessage, HootPreviousTrackMessage, HootReloadTracksMessage, HootSeekMessage, HootSetGlobalVolumeMessage, HootSetRepeatModeMessage, HootSetShuffleMessage, HootSetVolumeMessage, HootUnloadMessage } from "../types/broadcast/messages";
+import { HootFadeMessage, HootGetAudioInfoMessage, HootNextTrackMessage, HootPauseMessage, HootPlayAudioMessage, HootPlayMessage, HootPlaylistAudioInfo, HootPreviousTrackMessage, HootReloadTracksMessage, HootSeekMessage, HootSetGlobalVolumeMessage, HootSetRepeatModeMessage, HootSetShuffleMessage, HootSetVolumeMessage, HootUnloadMessage } from "../types/broadcast/messages";
 import { setupMediaSession, updateMediaSession } from "./mediaSession";
 
 import { AudioHandler } from "./audioHandler";
 import { HootAsyncUpdatesMessageRegistry } from "../types/broadcast/asyncUpdates";
 import { HootAudioControlsMessageRegistry } from "../types/broadcast/audioControls";
+import { HootExternalMessageRegistry } from "../types/broadcast/external";
 import OBR from "@owlbear-rodeo/sdk";
 import { TrackLibrary } from "./tracks";
 import { constants } from "../constants";
@@ -28,7 +29,7 @@ function reportPlaylistChange() {
                 {
                     title: v.currentTrack.name,
                     source: v.currentTrack.source,
-                    id: v.currentTrack.id,
+                    trackId: v.currentTrack.id,
                     duration: v.currentTrackDuration,
                     position: v.currentTrackPosition,
                     shuffle: v.shuffle,
@@ -95,14 +96,20 @@ function setupAudioControlsAPIHandler() {
         { destination: "LOCAL" }
     );
 
+    const externalHandler = new APIHandler<HootExternalMessageRegistry>(
+        constants.EXTERNAL_AUDIO_CONTROLLER_CLIENT_MESSAGE_CHANNEL_ID,
+        constants.EXTERNAL_AUDIO_CONTROLLER_MESSAGE_CHANNEL_ID,
+        { destination: "REMOTE" }
+    );
+
     handler.setHandler("HOOT_GET_GLOBAL_INFO", async function (this: APIHandler<HootAudioControlsMessageRegistry>) {
         return {
             type: "HOOT_GLOBAL_INFO" as const,
             volume: audioHandler.volume,
         }
     });
-    
-    handler.setHandler("HOOT_GET_AUDIO_INFO", async function (this: APIHandler<HootAudioControlsMessageRegistry>, message: HootGetAudioInfoMessage) {
+
+    handler.setHandler("HOOT_GET_AUDIO_INFO", async function(this: APIHandler<HootAudioControlsMessageRegistry>, message: HootGetAudioInfoMessage) {
         const playlist = audioHandler.playing[message.playlist];
         updateMediaSession(audioHandler);
         if (playlist === undefined) {
@@ -119,20 +126,46 @@ function setupAudioControlsAPIHandler() {
             volume: playlist.volume,
         };
     });
-    
-    handler.setHandler("HOOT_GET_PLAYING_INFO", async function (this: APIHandler<HootAudioControlsMessageRegistry>) {
+
+    handler.setHandler("HOOT_GET_PLAYING_INFO", async function(this: APIHandler<HootAudioControlsMessageRegistry>) {
         updateMediaSession(audioHandler);
         return {
             type: "HOOT_PLAYING_INFO" as const,
             playing: Object.fromEntries(Object.entries(audioHandler.playing).map(([key, pc]) => [key, {
                 title: pc.currentTrack.name,
                 source: pc.currentTrack.source,
-                id: pc.currentTrack.id,
+                trackId: pc.currentTrack.id,
                 duration: pc.currentTrackDuration,
                 position: pc.currentTrackPosition,
                 shuffle: pc.shuffle,
                 repeat: pc.repeat,
             }])),
+        };
+    });
+
+    externalHandler.setHandler("HOOT_GET_FULL_INFO", async function(this: APIHandler<HootExternalMessageRegistry>) {
+        const playingPromises = Object.entries(audioHandler.playing).map(([key, pc]) => {
+            async function trackInfo(): Promise<[string, HootPlaylistAudioInfo]> {
+                return [key, {
+                    trackId: pc.currentTrackId,
+                    source: (await pc.getLoadedTrackFromID(pc.currentTrackId)).source,
+                    title: pc.currentTrack.name,
+                    duration: pc.currentTrackDuration,
+                    position: pc.currentTrackPosition,
+                    shuffle: pc.shuffle,
+                    repeat: pc.repeat,
+                    volume: pc.volume,
+                    playing: pc.playing,
+                    playlist: key,
+                }];
+            }
+            return trackInfo();
+        });
+        const playing = Object.fromEntries(await Promise.all(playingPromises));
+        logging.info("Received HOOT_GET_FULL_INFO, replying:", playing);
+        return {
+            type: "HOOT_FULL_INFO" as const,
+            playing,
         };
     });
 
@@ -326,6 +359,7 @@ function setupAudioControlsAPIHandler() {
     });
 
     handler.register();
+    externalHandler.register();
 }
 
 export async function setup() {

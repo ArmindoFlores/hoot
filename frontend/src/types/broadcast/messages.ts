@@ -68,8 +68,7 @@ export interface HootGetAudioInfoMessage extends MessageBase {
     playlist: string;
 }
 
-export interface HootAudioInfoMessage extends MessageBase {
-    type: "HOOT_AUDIO_INFO";
+export interface HootAudioInfo {
     title: string;
     duration: number;
     position: number;
@@ -79,18 +78,28 @@ export interface HootAudioInfoMessage extends MessageBase {
     playing: boolean;
 }
 
-export interface HootPlaylistAudioInfoMessage extends MessageBase {
-    type: "HOOT_AUDIO_INFO";
-    source: string;
-    trackId: number;
+export interface HootPlayingInfo {
     title: string;
+    source: string | null;
+    trackId: number;
     duration: number;
     position: number;
     shuffle: boolean;
     repeat: RepeatMode;
-    volume: number;
-    playing: boolean;
+}
+
+export interface HootAudioInfoMessage extends MessageBase, HootAudioInfo {
+    type: "HOOT_AUDIO_INFO";
+}
+
+export interface HootPlaylistAudioInfo extends HootAudioInfo {
+    source: string;
+    trackId: number;
     playlist: string;
+}
+
+export interface HootPlaylistAudioInfoMessage extends MessageBase, HootPlaylistAudioInfo {
+    type: "HOOT_AUDIO_INFO";
 }
 
 export interface HootGetPlayingInfoMessage extends MessageBase {
@@ -99,15 +108,16 @@ export interface HootGetPlayingInfoMessage extends MessageBase {
 
 export interface HootPlayingInfoMessage extends MessageBase {
     type: "HOOT_PLAYING_INFO";
-    playing: Record<string, {
-        title: string;
-        source: string | null;
-        id: number;
-        duration: number;
-        position: number;
-        shuffle: boolean;
-        repeat: RepeatMode;
-    }>;
+    playing: Record<string, HootPlayingInfo>;
+}
+
+export interface HootGetFullInfoMessage extends MessageBase {
+    type: "HOOT_GET_FULL_INFO";
+}
+
+export interface HootFullInfoMessage extends MessageBase {
+    type: "HOOT_FULL_INFO";
+    playing: Record<string, HootPlaylistAudioInfo>;
 }
 
 export interface HootReloadTracksMessage extends MessageBase {

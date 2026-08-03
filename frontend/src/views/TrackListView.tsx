@@ -211,7 +211,7 @@ export function TrackListView() {
             setPlayingPlaylists(Object.keys(response.playing));
             setPlayingTracks(Object.fromEntries(Object.entries(response.playing).map(([key, value]) => [
                 key,
-                value.id
+                value.trackId
             ])));
         });
     }, []);
