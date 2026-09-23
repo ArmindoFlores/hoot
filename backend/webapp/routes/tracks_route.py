@@ -6,21 +6,25 @@ import io
 import json
 import os
 import re
+import time
 import traceback
 import typing
 import uuid
 from urllib.parse import urlparse, unquote
 
+import advocate
 import flask
 import magic
-import requests
 from sqlalchemy.orm import joinedload
+from advocate.exceptions import UnacceptableAddressException
 
 import config
 from .. import middleware, models
 from .utils import jsonify, is_valid_track_name, source_if_valid
 
 
+MAX_FILE_SIZE = 1024 * 1024 * 1024
+MAX_DOWNLOAD_SECONDS = 60
 tracks = flask.Blueprint("tracks", __name__, url_prefix="/tracks")
 
 class FakeFlaskFile:
@@ -30,8 +34,16 @@ class FakeFlaskFile:
 
 
 def download_file(source: str):
-    response = requests.get(source, stream=True, timeout=60)
-    response.raise_for_status()
+    start_time = time.monotonic()
+    try:
+        response = advocate.get(source, stream=True, timeout=(5, 10), allow_redirects=False)
+        response.raise_for_status()
+    except UnacceptableAddressException:
+        raise ValueError("URL resolves to a disallowed address")
+
+    content_length = response.headers.get("Content-Length")
+    if content_length and int(content_length) > MAX_FILE_SIZE:
+        raise ValueError("File too large")
 
     # Try to get filename from URL
     path = urlparse(source).path
@@ -52,9 +64,11 @@ def download_file(source: str):
     buffer = io.BytesIO()
     chunk_size = 8192
     for chunk in response.iter_content(chunk_size=chunk_size):
+        if time.monotonic() - start_time > MAX_DOWNLOAD_SECONDS:
+            raise ValueError("Download took too long")
         if chunk:
             total_bytes += len(chunk)
-            if total_bytes > 1024 * 1024 * 1024:
+            if total_bytes > MAX_FILE_SIZE:
                 raise ValueError("File too large")
             buffer.write(chunk)
 

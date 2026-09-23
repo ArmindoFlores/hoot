@@ -271,4 +271,4 @@ def edit_tracks():
         models.db.session.commit()
         return {"result": "Success"}
     except Exception as e:
-        return {"error": f"Failed to set track playlists ({str(e)})"}
+        return {"error": f"Failed to set track playlists ({e!s})"}

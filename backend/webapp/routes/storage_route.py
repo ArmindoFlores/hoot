@@ -171,12 +171,12 @@ def delete_directories():
     ).outerjoin(
         models.Track, models.Track.directory_id == models.Directory.id
     ).filter(
-        models.Directory.id.in_(directory_ids)
+        models.Directory.id.in_(directory_ids),
+        models.Directory.owner_id == middleware.auth.user.id,
     ).group_by(models.Directory.id).all()
 
     try:
         error_count = 0
-        error_str = None
         for directory, subdir_count, track_count in results:
             if subdir_count > 0 or track_count > 0:
                 error_count += 1

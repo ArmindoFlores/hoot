@@ -9,7 +9,7 @@ pg8000
 email_validator
 boto3
 python-magic
-requests
+advocate
 gunicorn
 psycopg2-binary
 setuptools==68.1.2
