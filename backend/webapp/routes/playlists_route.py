@@ -103,6 +103,7 @@ def get_playlist_tracks(playlist_id: str):
         tracks = playlist.tracks
     else:
         tracks = models.Track.query.filter(
+            models.Track.owner_id == user.id,
             ~models.Track.playlists.any()
         ).all()
 
